@@ -1,0 +1,22 @@
+/* src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    /* لون خلفية الداش بورد الفاتح جداً زي التصميم، والغامق في الوضع الليلي */
+    @apply bg-[#F4F6FA] dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300;
+  }
+}
+
+/* إخفاء السكرول بار المزعج (اختياري بس بيدي شكل أنظف) */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent; 
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-gray-700 rounded-full; 
+}
