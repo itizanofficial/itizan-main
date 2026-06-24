@@ -66,7 +66,7 @@ export const DoctorProgressChart: React.FC = () => {
   return (
     <div className="bg-white dark:bg-gray-900 rounded-[2rem] p-8 border border-gray-100 dark:border-gray-800 shadow-sm w-full flex flex-col h-[400px] transition-colors animate-fade-in">
       <div className="flex justify-between items-center mb-8">
-        <h3 className="text-lg font-black text-gray-800 dark:text-white">مؤشر الأداء السريري</h3>
+        <h3 className="text-lg font-black text-gray-800 dark:text-white">مؤشر الأداء </h3>
         <div className="flex gap-6 text-xs font-bold">
           <div className="flex items-center gap-2">
             <span className="text-gray-600 dark:text-gray-400">استشارات منجزة</span>

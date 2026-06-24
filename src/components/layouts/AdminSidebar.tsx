@@ -71,7 +71,7 @@ export const AdminSidebar: React.FC = () => {
                 {adminName}
               </span>
               <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
-                المدير العام (Root)
+                المدير العام 
               </span>
            </div>
            

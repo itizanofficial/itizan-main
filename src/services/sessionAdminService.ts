@@ -47,7 +47,6 @@ export const sessionAdminService = {
       const dateStr = d.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' });
       const timeStr = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 
-      // إضافة الإشعار للمريض (بدون session_id)
       const { error: notifError } = await supabase.from('notifications').insert([{ 
         patient_id: sessionData.patientId, 
         title: 'موعد جلسة جديد 📅', 

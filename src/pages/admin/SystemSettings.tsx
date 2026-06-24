@@ -40,15 +40,15 @@ export const SystemSettings: React.FC = () => {
         <h2 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-2">
           <ShieldCheck className="text-[#00838F]" /> بروتوكولات الأمان والنظام
         </h2>
-        <p className="text-gray-500 dark:text-gray-400 font-bold text-sm mt-1">مركز التحكم في السياسات الأمنية ومسوغات الدخول للإدارة العليا.</p>
+        <p className="text-gray-500 dark:text-gray-400 font-bold text-sm mt-1">مركز التحكم في السياسات الأمنية وكلمات المرور للإدارة العليا.</p>
       </div>
 
       <div className="bg-white dark:bg-gray-900 max-w-2xl rounded-[2.5rem] p-8 md:p-10 shadow-sm border border-gray-100 dark:border-gray-800">
         <h3 className="text-xl font-black mb-2 flex items-center gap-2 text-gray-800 dark:text-white">
-          <Lock size={20} className="text-[#00838F]" /> تحديث المفتاح السري للإدارة (Root)
+          <Lock size={20} className="text-[#00838F]" /> تحديث المفتاح السري للإدارة 
         </h3>
         <p className="text-sm font-bold text-gray-500 dark:text-gray-400 mb-8 bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
-          💡 يُنصح بشدة بتحديث كلمة المرور المركزية كل 90 يوماً لضمان عدم اختراق السجلات المالية والسريرية للمنظومة.
+           يُنصح بشدة بتحديث كلمة المرور المركزية كل 90 يوماً لضمان عدم اختراق السجلات المالية والسريرية للمنظومة.
         </p>
 
         <form onSubmit={handleUpdatePassword} className="space-y-6">

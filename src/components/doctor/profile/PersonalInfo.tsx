@@ -43,8 +43,8 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = ({ profileData, setProf
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm">
           {renderField('الاسم الكامل', 'full_name', 'مثال: أ.د. طارق الحبيب')}
-          {renderField('المسمى السريري', 'title', 'مثال: استشاري أول الطب النفسي')}
-          {renderField('التخصص الدقيق', 'specialty', 'مثال: الطب النفسي الدوائي والعلاج المعرفي')}
+          {renderField('المسمى الوظيفي', 'title', 'مثال: استشاري أول الطب النفسي')}
+          {renderField('التخصص ', 'specialty', 'مثال: الطب النفسي الدوائي والعلاج المعرفي')}
           {renderField('رقم ترخيص مزاولة المهنة', 'license_number', 'مثال: MOH-PSY-10293', true)}
           {renderField('سنوات الممارسة السريرية', 'experience_years', 'مثال: 12 عاماً')}
         </div>

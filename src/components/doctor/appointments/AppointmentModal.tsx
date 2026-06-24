@@ -99,7 +99,7 @@ export const AppointmentModal = ({ isOpen, onClose, onSave, editingData }: any) 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             
             <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">اسم المريض</label>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">اسم المراجع</label>
               <div className="relative">
                 {loadingPatients ? (
                   <div className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-gray-400 flex items-center gap-2 text-xs font-bold">
@@ -107,7 +107,7 @@ export const AppointmentModal = ({ isOpen, onClose, onSave, editingData }: any) 
                   </div>
                 ) : (
                   <select value={formData.patientId} onChange={(e) => handlePatientSelect(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-10 py-3 outline-none focus:border-[#00838F] dark:text-white appearance-none font-bold text-sm cursor-pointer" disabled={!!editingData}>
-                    <option value="">-- اختر المريض من القائمة --</option>
+                    <option value="">-- اختر المراجع من القائمة --</option>
                     {myPatients.map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}

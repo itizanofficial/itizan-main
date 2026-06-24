@@ -94,12 +94,12 @@ export default function RootAdminSetup() {
         <form onSubmit={handleCreateRootAdmin} className="space-y-4 relative z-10">
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1 mr-1">اسم المدير بالكامل</label>
-            <input type="text" required value={adminName} onChange={(e) => setAdminName(e.target.value)} placeholder="مثال: د. حسام الدين" className="w-full px-5 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 text-gray-800 focus:bg-white focus:border-[#00838F] focus:ring-4 focus:ring-cyan-500/10 outline-none transition-all font-medium" />
+            <input type="text" required value={adminName} onChange={(e) => setAdminName(e.target.value)}  className="w-full px-5 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 text-gray-800 focus:bg-white focus:border-[#00838F] focus:ring-4 focus:ring-cyan-500/10 outline-none transition-all font-medium" />
           </div>
 
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1 mr-1">اسم المؤسسة / العيادة</label>
-            <input type="text" value={clinicName} onChange={(e) => setClinicName(e.target.value)} placeholder="مثال: عيادات التوازن النفسي" className="w-full px-5 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 text-gray-800 focus:bg-white focus:border-[#00838F] focus:ring-4 focus:ring-cyan-500/10 outline-none transition-all font-medium" />
+            <input type="text" value={clinicName} onChange={(e) => setClinicName(e.target.value)}  className="w-full px-5 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 text-gray-800 focus:bg-white focus:border-[#00838F] focus:ring-4 focus:ring-cyan-500/10 outline-none transition-all font-medium" />
           </div>
 
           <div>

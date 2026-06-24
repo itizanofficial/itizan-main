@@ -16,7 +16,7 @@ export const SessionStats: React.FC<StatsProps> = ({ todayCount, completedCount 
           <CalendarDays size={24} strokeWidth={2.5} />
         </div>
         <h3 className="text-3xl font-black text-[#00838F] dark:text-cyan-300">{todayCount}</h3>
-        <p className="text-sm font-bold text-gray-700 dark:text-gray-300">الاستشارات المجدولة لليوم</p>
+        <p className="text-sm font-bold text-gray-700 dark:text-gray-300"> جلسات اليوم</p>
       </div>
 
       {/* جارية الآن */}
@@ -25,7 +25,7 @@ export const SessionStats: React.FC<StatsProps> = ({ todayCount, completedCount 
           <Activity size={24} strokeWidth={2.5} />
         </div>
         <h3 className="text-3xl font-black text-[#E65100] dark:text-orange-300">0</h3>
-        <p className="text-sm font-bold text-gray-700 dark:text-gray-300">استشارات قيد الانعقاد (Live)</p>
+        <p className="text-sm font-bold text-gray-700 dark:text-gray-300"> جارية الان قيد التنفيذ</p>
       </div>
 
       {/* مكتملة */}
@@ -34,7 +34,7 @@ export const SessionStats: React.FC<StatsProps> = ({ todayCount, completedCount 
           <CheckCircle size={24} strokeWidth={2.5} />
         </div>
         <h3 className="text-3xl font-black text-[#2E7D32] dark:text-emerald-300">{completedCount}</h3>
-        <p className="text-sm font-bold text-gray-700 dark:text-gray-300">السجلات السريرية المكتملة</p>
+        <p className="text-sm font-bold text-gray-700 dark:text-gray-300"> الجلسات  المكتملة</p>
       </div>
 
     </div>

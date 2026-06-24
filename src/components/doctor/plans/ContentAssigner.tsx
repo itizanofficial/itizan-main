@@ -55,7 +55,7 @@ export const ContentAssigner: React.FC<ContentAssignerProps> = ({ patientId }) =
 
       if (error) throw error;
       
-      toast.success('تمت إضافة المادة العلاجية إلى حساب المريض بنجاح!'); // 🌟 Toast
+      toast.success('تمت إضافة المادة العلاجية إلى حساب المراجع بنجاح!'); // 🌟 Toast
       
       setTitle('');
       setDuration('');
@@ -74,7 +74,7 @@ export const ContentAssigner: React.FC<ContentAssignerProps> = ({ patientId }) =
     try {
       await supabase.from('patient_content').delete().eq('id', id);
       setContents(contents.filter(c => c.id !== id));
-      toast.success('تم إزالة المحتوى من سجل المريض.');
+      toast.success('تم إزالة المحتوى من سجل المراجع.');
     } catch (err) {
       console.error(err);
       toast.error('حدث خطأ أثناء حذف الملف.');
@@ -85,12 +85,12 @@ export const ContentAssigner: React.FC<ContentAssignerProps> = ({ patientId }) =
     <div className="space-y-6 animate-fade-in">
       <form onSubmit={handleAssignContent} className="bg-gray-50 dark:bg-gray-800/50 p-6 rounded-2xl border border-gray-100 dark:border-gray-800">
         <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-[#00838F] dark:text-cyan-400">
-          <Plus size={20} /> إدراج خطة علاجية (مرئية / مقروءة) للمريض
+          <Plus size={20} /> إدراج خطة علاجية (مرئية / مقروءة) للمراجع
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">عنوان المادة (يظهر في تطبيق المريض)</label>
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">عنوان المادة (يظهر في تطبيق المراجع)</label>
             <input type="text" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="مثال: تمارين الاسترخاء العضلي العميق (CBT)" className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl py-2.5 px-4 focus:outline-none focus:border-[#00838F] text-sm font-bold" />
           </div>
 
@@ -118,21 +118,21 @@ export const ContentAssigner: React.FC<ContentAssignerProps> = ({ patientId }) =
 
         <div className="flex justify-end mt-2">
           <button type="submit" disabled={isSubmitting} className="bg-[#00838F] hover:bg-[#006064] text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-colors text-sm disabled:opacity-50">
-            {isSubmitting ? 'جاري الرفع للشبكة...' : 'اعتماد ونشر المادة للمريض'}
+            {isSubmitting ? 'جاري الرفع للشبكة...' : 'اعتماد ونشر المادة للمراجع'}
           </button>
         </div>
       </form>
 
       <div>
         <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-800 dark:text-white">
-          <Video size={20} className="text-[#00838F]" /> الأرشيف العلاجي المتاح للمريض
+          <Video size={20} className="text-[#00838F]" /> الأرشيف العلاجي المتاح للمراجع
         </h3>
 
         {loading ? (
           <div className="text-center py-10 text-gray-500 font-bold">جاري المزامنة مع قاعدة البيانات...</div>
         ) : contents.length === 0 ? (
           <div className="text-center py-10 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 text-gray-500 font-bold">
-            السجل التثقيفي فارغ. لم يتم إسناد أي مواد علاجية لهذا المريض.
+            السجل التثقيفي فارغ. لم يتم إسناد أي مواد علاجية لهذا المراجع.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

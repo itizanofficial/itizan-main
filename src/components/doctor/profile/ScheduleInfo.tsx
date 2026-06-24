@@ -57,8 +57,7 @@ export const ScheduleInfo: React.FC<ScheduleInfoProps> = ({ profileData, setProf
       
       {isEditing && (
         <div className="text-center text-[#00838F] bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-100 dark:border-cyan-800 p-4 rounded-xl font-bold text-sm mb-6 flex items-center justify-center gap-2">
-          💡 حدد أيام التواجد الميداني وساعات العمل المعتمدة للعيادة.
-        </div>
+مواعيد العمل الاسبوعية         </div>
       )}
 
       <div className="space-y-3">

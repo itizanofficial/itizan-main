@@ -24,7 +24,7 @@ export const AppointmentTable = ({ appointments, onEdit, onDelete, onRemind, onC
       <table className="w-full text-right whitespace-nowrap">
         <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
           <tr>
-            <th className="py-4 px-6 font-black text-gray-700 dark:text-gray-300 text-sm">اسم المريض</th>
+            <th className="py-4 px-6 font-black text-gray-700 dark:text-gray-300 text-sm">اسم المراجع</th>
             <th className="py-4 px-6 font-black text-gray-700 dark:text-gray-300 text-sm">تاريخ ووقت الجلسة</th>
             <th className="py-4 px-6 font-black text-gray-700 dark:text-gray-300 text-sm text-center">مكان الجلسة</th>
             <th className="py-4 px-6 font-black text-gray-700 dark:text-gray-300 text-sm text-center">الحالة</th>
@@ -87,7 +87,7 @@ export const AppointmentTable = ({ appointments, onEdit, onDelete, onRemind, onC
                       </button>
                     )}
 
-                    <button onClick={() => onRemind(apt)} className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-2 rounded-xl transition-colors border border-blue-100 dark:border-blue-800" title="إرسال إشعار للمريض">
+                    <button onClick={() => onRemind(apt)} className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-2 rounded-xl transition-colors border border-blue-100 dark:border-blue-800" title="إرسال إشعار للمراجع">
                       <Mail size={18} />
                     </button>
                     

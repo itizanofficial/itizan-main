@@ -85,7 +85,7 @@ export default function CreateAccount() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1.5">الاسم بالكامل</label>
-              <input type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="مثال: د. أحمد خالد" className="w-full px-5 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 outline-none focus:bg-white focus:border-[#00838F] focus:ring-4 focus:ring-cyan-500/10 font-medium transition-all" />
+              <input type="text" required value={name} onChange={(e) => setName(e.target.value)}  className="w-full px-5 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 outline-none focus:bg-white focus:border-[#00838F] focus:ring-4 focus:ring-cyan-500/10 font-medium transition-all" />
             </div>
             
             <div>

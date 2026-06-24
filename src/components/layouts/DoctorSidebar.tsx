@@ -5,7 +5,7 @@ import { LayoutDashboard, Users, CalendarDays, BarChart3, User, LogOut, Activity
 const doctorNavItems = [
   { id: 'dashboard', name: 'لوحة التحكم', icon: LayoutDashboard, path: '/doctor/dashboard' },
   { id: 'appointments', name: 'الحجوزات', icon: CalendarDays, path: '/doctor/appointments' },
-  { id: 'patients', name: 'ملفات المرضى', icon: Users, path: '/doctor/patients' },
+  { id: 'patients', name: 'ملفات المراجعين', icon: Users, path: '/doctor/patients' },
   { id: 'sessions', name: 'الجلسات', icon: Activity, path: '/doctor/sessions' },
   { id: 'treatment-plan', name: 'الخطط العلاجية', icon: ClipboardList, path: '/doctor/treatment-plan' }, 
   { id: 'reports', name: 'التقارير', icon: BarChart3, path: '/doctor/reports' },

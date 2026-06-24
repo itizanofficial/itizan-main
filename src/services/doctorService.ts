@@ -53,7 +53,6 @@ export const doctorService = {
     return data;
   },
 
-  // 4. إرسال إشعار للمريض
   sendPatientNotification: async (patientId: string, title: string, body: string, type: 'session' | 'system' = 'session') => {
     const { error } = await supabase.from('notifications').insert([{
       patient_id: patientId,

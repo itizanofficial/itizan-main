@@ -29,7 +29,7 @@ export const PatientDiagnosisSection: React.FC<DiagnosisSectionProps> = ({ patie
       setIsSaving(true);
       await doctorService.updatePatientDiagnosis(patientId, diagnosis);
       
-      toast.success('تم تحديث التشخيص الطبي للمريض بنجاح.'); // 🌟 Toast شيك بدل الـ UI المعقد
+      toast.success('تم تحديث التشخيص الطبي للمراجع  بنجاح.'); // 🌟 Toast شيك بدل الـ UI المعقد
       
       setIsEditing(false);
       onRefresh(); 
@@ -67,7 +67,7 @@ export const PatientDiagnosisSection: React.FC<DiagnosisSectionProps> = ({ patie
               value={diagnosis}
               onChange={(e) => setDiagnosis(e.target.value)}
               className="w-full p-3 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-semibold outline-none focus:ring-2 focus:ring-[#00838F] min-h-[100px] text-sm resize-none"
-              placeholder="اكتب التشخيص التفصيلي هنا (مثال: يعاني المريض من نوبات هلع متكررة واضطراب نوم مرتبط بالقلق...)"
+              placeholder="اكتب التشخيص التفصيلي هنا (مثال: يعاني المراجع من نوبات هلع متكررة واضطراب نوم مرتبط بالقلق...)"
               disabled={isSaving}
             />
             <div className="flex justify-end gap-2">

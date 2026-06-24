@@ -187,7 +187,7 @@ export const Appointments: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-gray-900 dark:text-white">إدارة الحجوزات</h1>
-          <p className="text-gray-500 dark:text-gray-400 font-bold text-sm mt-1">مراجعة وتأكيد حجوزات المرضى.</p>
+          <p className="text-gray-500 dark:text-gray-400 font-bold text-sm mt-1">مراجعة وتأكيد حجوزات المراجعين.</p>
         </div>
         <button onClick={() => { setEditingData(null); setIsModalOpen(true); }} className="bg-[#00838F] hover:bg-[#006064] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-md text-sm active:scale-95">
           <Plus size={20} /> <span className="text-white">حجز جديد</span>
@@ -200,7 +200,7 @@ export const Appointments: React.FC = () => {
           <div className="relative w-full lg:w-96">
             <input 
               type="text" 
-              placeholder="ابحث باسم المريض أو رقم الموبايل..." 
+              placeholder="ابحث باسم المراجع أو رقم الموبايل..." 
               value={searchTerm} 
               onChange={(e) => setSearchTerm(e.target.value)} 
               className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl px-12 py-3 outline-none focus:bg-white dark:focus:bg-gray-900 focus:border-[#00838F] focus:ring-4 focus:ring-cyan-500/10 transition-all font-bold text-sm shadow-inner" 

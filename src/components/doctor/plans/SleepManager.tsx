@@ -89,7 +89,6 @@ export const SleepManager: React.FC<SleepManagerProps> = ({ patientId }) => {
             <textarea
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
-              placeholder="مثال: يُنصح بتجنب المنبهات (الكافيين) بعد الساعة 4 مساءً، وتثبيت مواعيد الاستيقاظ لضبط الإيقاع اليومي (Circadian Rhythm)..."
               className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-3 focus:outline-none focus:border-[#00838F] text-sm font-bold h-44 resize-none"
             />
           </div>
@@ -106,7 +105,7 @@ export const SleepManager: React.FC<SleepManagerProps> = ({ patientId }) => {
         {/* جدول تتبع نوم المريض لآخر 7 أيام */}
         <div className="lg:col-span-2 space-y-4">
           <h3 className="text-md font-bold flex items-center gap-2 text-gray-800 dark:text-white">
-            <Moon size={18} className="text-[#00838F]" /> المؤشرات الحيوية للنوم (آخر 7 أيام)
+            <Moon size={18} className="text-[#00838F]" /> المؤشرات الحيوية للنوم 
           </h3>
           
           {loading ? (

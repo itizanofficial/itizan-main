@@ -83,7 +83,7 @@ export const DailyTasksManager: React.FC<DailyTasksManagerProps> = ({ patientId 
       setDoctorNotes('');
       setRepeatDays(1);
       fetchTasks();
-      toast.success('تم اعتماد البرنامج السلوكي للمريض بنجاح.'); // 🌟 إشعار احترافي
+      toast.success('تم اعتماد البرنامج السلوكي للمراجع بنجاح.'); // 🌟 إشعار احترافي
     } catch (err: any) {
       console.error('Error adding task:', err);
       toast.error('تعذر مزامنة الخطة العلاجية، يرجى التحقق من الخادم.');
@@ -97,7 +97,7 @@ export const DailyTasksManager: React.FC<DailyTasksManagerProps> = ({ patientId 
     try {
       await supabase.from('daily_tasks').delete().eq('id', taskId);
       setTasks(tasks.filter(t => t.id !== taskId));
-      toast.success('تم إيقاف وإزالة الخطة من سجل المريض.');
+      toast.success('تم إيقاف وإزالة الخطة من سجل المراجع.');
     } catch (err) {
       console.error('Error deleting task:', err);
       toast.error('حدث خطأ أثناء الحذف.');
@@ -170,7 +170,7 @@ export const DailyTasksManager: React.FC<DailyTasksManagerProps> = ({ patientId 
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">إرشادات سريرية للمريض</label>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">إرشادات سريرية للمراجع</label>
               <div className="relative">
                 <input type="text" value={doctorNotes} onChange={(e) => setDoctorNotes(e.target.value)} placeholder="مثال: تُنفذ الأنشطة في بيئة خالية من المشتتات..." className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl py-2.5 pr-10 pl-4 focus:outline-none focus:border-[#00838F] text-sm font-bold" />
                 <AlignRight size={18} className="absolute right-3 top-3 text-gray-400" />
@@ -199,7 +199,7 @@ export const DailyTasksManager: React.FC<DailyTasksManagerProps> = ({ patientId 
           <div className="text-center py-10 text-gray-500 font-bold">جاري تحميل السجلات...</div>
         ) : tasks.length === 0 ? (
           <div className="text-center py-10 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 text-gray-500 font-bold">
-            السجل السلوكي فارغ. لم يتم إدراج برامج حالية لهذا المريض.
+            السجل السلوكي فارغ. لم يتم إدراج برامج حالية لهذا المراجع.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
