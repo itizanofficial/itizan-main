@@ -47,15 +47,22 @@ export const DoctorTopCharts: React.FC = () => {
           setPieData([{ name: 'سجل فارغ', value: 1, color: '#E5E7EB' }]);
         }
 
-        // 2️⃣ جلب استشارات اليوم (باستخدام Join لجلب اسم المريض من جدول patients)
-        const todayDate = new Date().toISOString().split('T')[0];
+        // 2️⃣ جلب استشارات اليوم بدقة (توقيت محلي من بداية اليوم لنهايته)
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const localTodayDate = `${year}-${month}-${day}`; // تاريخ اليوم المحلي
+
         const { data: sessions } = await supabase
           .from('sessions')
-          .select('*, patient:patients(name)') // 🌟 Join ذكي لجلب اسم المريض الحقيقي
+          .select('*, patient:patients(name)') 
           .eq('doctor_id', user.id)
-          .like('session_date', `${todayDate}%`) // للتعامل مع أي صيغة وقت وتاريخ
+          // 🌟 الحل السحري: بنفلتر من أول دقيقة في اليوم لآخر دقيقة
+          .gte('session_date', `${localTodayDate}T00:00:00`)
+          .lte('session_date', `${localTodayDate}T23:59:59`)
           .order('session_date', { ascending: true })
-          .limit(4);
+          .limit(5); // خليتها 5 عشان تملى الجدول بشكل أشيك
 
         if (sessions) {
           setTodaySessions(sessions);
@@ -127,7 +134,7 @@ export const DoctorTopCharts: React.FC = () => {
         <div className="flex justify-between items-start mb-5 border-b border-gray-100 dark:border-gray-800 pb-4">
           <div>
             <h3 className="text-base font-black text-gray-800 dark:text-white">جدول اليوم السريري</h3>
-            <span className="text-xs font-bold text-gray-500">الاستشارات المجدولة لتاريخ اليوم</span>
+            <span className="text-xs font-bold text-gray-500">الاستشارات المجدولة لتاريخ اليوم فقط</span>
           </div>
           <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-xl">
             <CalendarClock size={20} />
@@ -140,7 +147,6 @@ export const DoctorTopCharts: React.FC = () => {
           ) : todaySessions.length > 0 ? (
             <div className="space-y-3">
               {todaySessions.map((session, idx) => {
-                // استخراج الوقت من session_date لو مش موجود عمود time
                 const sessionTime = new Date(session.session_date).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
                 const patientName = session.patient?.name || 'مراجع غير معرف';
 

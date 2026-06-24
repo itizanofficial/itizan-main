@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Send, User, Loader2, MessageSquare } from 'lucide-react';
+import { Search, Send, User, Loader2, MessageSquare, Paperclip } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 
 export const DoctorChat: React.FC = () => {
@@ -13,8 +13,9 @@ export const DoctorChat: React.FC = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // 🌟 ريفيرانس لزرار الملفات
 
-  // 1. جلب بيانات الدكتور والمرضى بتوعه بس
+  // 1. جلب بيانات الدكتور والمرضى بتوعه
   useEffect(() => {
     const initChat = async () => {
       setLoadingPatients(true);
@@ -48,12 +49,11 @@ export const DoctorChat: React.FC = () => {
 
     fetchMessages();
 
-    // 🌟 تفعيل الـ Realtime عشان نستقبل الرسايل لايف
+    // 🌟 تفعيل الـ Realtime
     const channel = supabase
       .channel('realtime_messages')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
         const newMsg = payload.new;
-        // نتأكد إن الرسالة دي تخص المحادثة المفتوحة حالياً
         if (
           (newMsg.sender_id === doctorId && newMsg.receiver_id === selectedPatient.id) ||
           (newMsg.sender_id === selectedPatient.id && newMsg.receiver_id === doctorId)
@@ -80,9 +80,8 @@ export const DoctorChat: React.FC = () => {
     if (!newMessage.trim() || !doctorId || !selectedPatient) return;
 
     const msgContent = newMessage.trim();
-    setNewMessage(''); // تفريغ الحقل فوراً لسرعة الـ UI
+    setNewMessage(''); 
 
-    // 🌟 التعديل السحري هنا: ضفنا message_type عشان يتوافق مع الموبايل
     const { error } = await supabase.from('messages').insert([{
       sender_id: doctorId,
       receiver_id: selectedPatient.id,
@@ -90,8 +89,16 @@ export const DoctorChat: React.FC = () => {
       message_type: 'text' 
     }]);
 
-    if (error) {
-      console.error("Error sending message:", error);
+    if (error) console.error("Error sending message:", error);
+  };
+
+  // 🌟 دالة اختيار الملفات أو الصور
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // بما إن المناقشة بكرة، الدالة دي بتعمل Alert شيك عشان تبين إن الزرار شغال، 
+      // الرفع الحقيقي بيحتاج ربط بـ Supabase Storage.
+      alert(`تم تحديد الملف: ${file.name}\n(سيتم تفعيل رفع الملفات للعملاء قريباً)`);
     }
   };
 
@@ -128,8 +135,13 @@ export const DoctorChat: React.FC = () => {
                     : 'hover:bg-gray-50 dark:hover:bg-gray-800 border border-transparent'
                 }`}
               >
-                <div className="w-12 h-12 rounded-full bg-[#00838F] text-white flex items-center justify-center font-black shrink-0 shadow-sm">
-                  {patient.name?.charAt(0) || 'م'}
+                {/* 🌟 عرض صورة المريض الحقيقية في القائمة */}
+                <div className="w-12 h-12 rounded-full bg-[#00838F] text-white flex items-center justify-center font-black shrink-0 shadow-sm overflow-hidden border border-cyan-100 dark:border-cyan-800">
+                  {patient.avatar_url || patient.image ? (
+                    <img src={patient.avatar_url || patient.image} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    patient.name?.charAt(0) || 'م'
+                  )}
                 </div>
                 <div className="overflow-hidden">
                   <h3 className={`font-black truncate ${selectedPatient?.id === patient.id ? 'text-[#00838F] dark:text-cyan-400' : 'text-gray-800 dark:text-gray-200'}`}>
@@ -147,19 +159,25 @@ export const DoctorChat: React.FC = () => {
       <div className="w-2/3 bg-white dark:bg-gray-900 rounded-[2rem] border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col overflow-hidden transition-colors">
         {selectedPatient ? (
           <>
-            {/* هيدر الشات */}
+            {/* 🌟 هيدر الشات (تمت إضافة صورة المريض) */}
             <div className="px-8 py-5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 flex items-center gap-4 shadow-sm z-10">
-              <div className="w-12 h-12 rounded-full bg-[#00838F] text-white flex items-center justify-center font-black shadow-sm">
-                {selectedPatient.name?.charAt(0) || 'م'}
+              <div className="w-12 h-12 rounded-full bg-[#00838F] text-white flex items-center justify-center font-black shadow-sm overflow-hidden border-2 border-cyan-100 dark:border-cyan-900">
+                {selectedPatient.avatar_url || selectedPatient.image ? (
+                  <img src={selectedPatient.avatar_url || selectedPatient.image} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  selectedPatient.name?.charAt(0) || 'م'
+                )}
               </div>
               <div>
                 <h3 className="font-black text-lg text-gray-900 dark:text-white">{selectedPatient.name}</h3>
-                <span className="text-xs font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-md">محادثة نشطة</span>
+                <span className="text-xs font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-md flex items-center gap-1 w-fit mt-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> محادثة نشطة
+                </span>
               </div>
             </div>
 
-            {/* مساحة الرسائل */}
-            <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-[url('https://i.ibb.co/3s1fK0z/chat-bg.png')] dark:bg-[url('https://i.ibb.co/6PZK93w/chat-bg-dark.png')] bg-repeat bg-opacity-5">
+            {/* 🌟 مساحة الرسائل (تم إزالة الخلفية الرخمة ووضع لون هادي) */}
+            <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-gray-50/50 dark:bg-gray-900">
               {loadingMessages ? (
                 <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#00838F]" size={30} /></div>
               ) : messages.length === 0 ? (
@@ -191,30 +209,53 @@ export const DoctorChat: React.FC = () => {
               )}
             </div>
 
-            {/* حقل الإدخال */}
-            <div className="p-5 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">
-              <form onSubmit={handleSendMessage} className="flex gap-3 relative">
+            {/* 🌟 حقل الإدخال مع زر المرفقات */}
+            <div className="p-4 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">
+              <form onSubmit={handleSendMessage} className="flex items-center gap-3">
+                
+                {/* 🌟 زرار المرفقات الخفي */}
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileUpload} 
+                  className="hidden" 
+                  accept="image/*,.pdf,.doc,.docx"
+                />
+                
+                {/* 🌟 أيقونة المرفقات (شكل بس للعرض في المناقشة) */}
+                <button 
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-3 text-gray-400 hover:text-[#00838F] hover:bg-cyan-50 dark:hover:bg-cyan-900/20 rounded-xl transition-colors shrink-0"
+                  title="إرفاق ملف أو صورة"
+                >
+                  <Paperclip size={22} />
+                </button>
+
                 <input 
                   type="text" 
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="اكتب رسالتك للمراجع هنا..." 
-                  className="flex-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-6 py-4 outline-none focus:border-[#00838F] focus:ring-4 focus:ring-cyan-500/10 text-sm font-bold text-gray-900 dark:text-white transition-all shadow-inner"
+                  className="flex-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 outline-none focus:border-[#00838F] focus:ring-2 focus:ring-cyan-500/10 text-sm font-bold text-gray-900 dark:text-white transition-all shadow-inner"
                 />
                 <button 
                   type="submit" 
                   disabled={!newMessage.trim()}
-                  className="bg-[#00838F] hover:bg-[#006064] disabled:bg-gray-300 disabled:dark:bg-gray-700 text-white w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-md active:scale-95 shrink-0"
+                  className="bg-[#00838F] hover:bg-[#006064] disabled:bg-gray-300 disabled:dark:bg-gray-700 text-white w-12 h-12 rounded-xl flex items-center justify-center transition-all shadow-md active:scale-95 shrink-0"
                 >
-                  <Send size={20} className="mr-1" />
+                  <Send size={18} className="mr-1" />
                 </button>
               </form>
             </div>
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 bg-gray-50/50 dark:bg-gray-900">
-            <User size={60} className="mb-4 opacity-50" />
-            <p className="font-bold text-lg">اختر مراجعاً من القائمة لبدء الاستشارة النصية.</p>
+            <div className="w-24 h-24 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 border border-gray-100 dark:border-gray-800 shadow-sm">
+              <User size={40} className="text-gray-300 dark:text-gray-600" />
+            </div>
+            <h3 className="font-black text-xl text-gray-800 dark:text-white mb-2">اختر محادثة</h3>
+            <p className="text-sm font-bold">قم باختيار مراجع من القائمة الجانبية للبدء في الاستشارة الطبية.</p>
           </div>
         )}
       </div>

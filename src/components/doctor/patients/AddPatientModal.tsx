@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Copy, CheckCircle2, UserPlus, Loader2 } from 'lucide-react';
 import QRCode from 'react-qr-code'; 
-import toast from 'react-hot-toast'; // 🌟 مكتبة الإشعارات الشيك
-import { doctorService } from '../../../services/doctorService';
+import { supabase } from '../../../services/supabase';
 
 export const AddPatientModal = ({ isOpen, onClose }: any) => {
   const [copied, setCopied] = useState(false);
@@ -11,19 +10,48 @@ export const AddPatientModal = ({ isOpen, onClose }: any) => {
 
   useEffect(() => {
     if (isOpen) {
-      const fetchCode = async () => {
+      const fetchOrGenerateCode = async () => {
         setIsLoading(true);
         try {
-          const code = await doctorService.getCurrentDoctorCode();
-          if (code) setDoctorCode(code);
+          // 1. نجيب اليوزر (الدكتور) الحالي
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error("No user found");
+
+          // 2. نشوف هل هو مسجل كود قبل كده ولا لأ
+          const { data: doctor } = await supabase
+            .from('doctors')
+            .select('doctor_code')
+            .eq('id', user.id)
+            .single();
+
+          let code = doctor?.doctor_code;
+
+          // 3. 🌟 السحر هنا: لو ملوش كود، نولد 8 حروف ونحفرهم في عمود doctor_code
+          if (!code) {
+            code = user.id.slice(0, 8).toUpperCase();
+            
+            // 🌟 استخدام UPDATE صريحة عشان تجبر الداتا بيز تحفظ الكود في العمود
+            const { error: updateError } = await supabase
+              .from('doctors')
+              .update({ doctor_code: code })
+              .eq('id', user.id);
+
+            if (updateError) {
+              console.error("خطأ في حفظ الكود في الداتا بيز:", updateError);
+            }
+          }
+
+          setDoctorCode(code);
+
         } catch (error) {
-          console.error("Error:", error);
+          console.error("Error fetching/generating code:", error);
           setDoctorCode("تعذر توليد الرمز");
         } finally {
           setIsLoading(false);
         }
       };
-      fetchCode();
+      
+      fetchOrGenerateCode();
     }
   }, [isOpen]);
 
@@ -33,7 +61,6 @@ export const AddPatientModal = ({ isOpen, onClose }: any) => {
     if (!doctorCode || doctorCode === "تعذر توليد الرمز") return;
     navigator.clipboard.writeText(doctorCode);
     setCopied(true);
-    toast.success('تم نسخ كود الربط بنجاح! 📋'); // 🌟 إشعار احترافي يختفي تلقائياً
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -72,8 +99,8 @@ export const AddPatientModal = ({ isOpen, onClose }: any) => {
                   <span className="font-black text-lg text-gray-900 dark:text-white px-4 tracking-widest" dir="ltr">
                     {doctorCode}
                   </span>
-                  <button onClick={handleCopy} className={`p-3 rounded-lg flex items-center justify-center transition-colors ${copied ? 'bg-emerald-100 text-emerald-600' : 'bg-[#E0F7FA] text-[#00838F] hover:bg-cyan-100'}`}>
-                    {copied ? <CheckCircle2 size={20} /> : <Copy size={20} />}
+                  <button onClick={handleCopy} className={`p-3 rounded-lg flex items-center justify-center gap-2 transition-colors ${copied ? 'bg-emerald-100 text-emerald-600' : 'bg-[#E0F7FA] text-[#00838F] hover:bg-cyan-100'}`}>
+                    {copied ? <><CheckCircle2 size={18} /> <span className="text-xs font-bold">تم النسخ</span></> : <Copy size={20} />}
                   </button>
                 </div>
               </div>

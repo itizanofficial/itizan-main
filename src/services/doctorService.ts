@@ -90,14 +90,57 @@ export const doctorService = {
     return data;
   },
 
-  // 7. جلب مرضى الدكتور
+  // 7. جلب مرضى الدكتور (تم إضافة الترتيب عشان أحدث مريض يظهر الأول)
   getDoctorPatients: async (doctorId: string) => {
     const { data, error } = await supabase
       .from('patients')
       .select('*')
-      .eq('doctor_id', doctorId); 
+      .eq('doctor_id', doctorId)
+      .order('created_at', { ascending: false }); // 🌟 ترتيب بالأحدث
 
     if (error) throw error;
     return data;
+  },
+
+  // 🌟 8. (إضافة جديدة) تحديث التشخيص الطبي للمريض
+  updatePatientDiagnosis: async (patientId: string, diagnosis: string) => {
+    const { data, error } = await supabase
+      .from('patients')
+      .update({ diagnosis: diagnosis })
+      .eq('id', patientId);
+
+    if (error) throw error;
+    return data;
+  },
+
+  // 🌟 9. (إضافة جديدة) جلب أو توليد كود الدكتور لربط المرضى
+  getCurrentDoctorCode: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // نجيب الكود لو موجود
+    const { data: doctor, error } = await supabase
+      .from('doctors')
+      .select('doctor_code')
+      .eq('id', user.id)
+      .maybeSingle(); // maybeSingle بدل single عشان لو مفيش ميضربش إيرور
+
+    if (error) throw error;
+
+    // لو ليه كود، نرجعه
+    if (doctor && doctor.doctor_code) {
+      return doctor.doctor_code;
+    }
+
+    // لو ملوش كود، نولد كود جديد من أول 8 حروف من الآي دي ونحفظه
+    const newCode = user.id.slice(0, 8).toUpperCase();
+    
+    const { error: upsertError } = await supabase
+      .from('doctors')
+      .upsert({ id: user.id, doctor_code: newCode });
+
+    if (upsertError) throw upsertError;
+
+    return newCode;
   }
 };

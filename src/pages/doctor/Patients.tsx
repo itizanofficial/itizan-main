@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom'; // 🌟 استدعاء الـ Hook بتاع الانتقال
 import { Search, Filter, Phone, MessageCircle, FileText, UserPlus, Loader2 } from 'lucide-react';
 import { PatientDetailsModal } from '../../components/doctor/patients/PatientDetailsModal';
 import { AddPatientModal } from '../../components/doctor/patients/AddPatientModal';
@@ -6,6 +7,7 @@ import { doctorService } from '../../services/doctorService';
 import { supabase } from '../../services/supabase';
 
 export const Patients: React.FC = () => {
+  const navigate = useNavigate(); // 🌟 تفعيل الانتقال للشات
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('الكل');
   
@@ -20,6 +22,7 @@ export const Patients: React.FC = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      // 🌟 التأكد إن السيرفيس بيجيب كل الداتا (لو السيرفيس مش بيجيبها، دي هتتعالج في ملفات التفاصيل اللي هتبعتها)
       const data = await doctorService.getDoctorPatients(user.id);
       setPatients(data || []);
     } catch (error) {
@@ -33,7 +36,6 @@ export const Patients: React.FC = () => {
     fetchPatients();
   }, [isAddModalOpen]);
 
-  // دالة فحص حالة المراجع (متصل أو غير متصل) بناء على آخر ظهور last_seen
   const getOnlineStatus = (lastSeenString: string) => {
     if (!lastSeenString) return { label: 'غير متصل', isOnline: false };
     
@@ -128,9 +130,16 @@ export const Patients: React.FC = () => {
               <div key={patient.id} className="bg-white dark:bg-gray-900 rounded-[2rem] border border-gray-100 dark:border-gray-800 shadow-sm p-6 hover:shadow-lg hover:-translate-y-1 transition-all flex flex-col">
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-[#E0F7FA] dark:bg-cyan-900/30 text-[#00838F] dark:text-cyan-400 flex items-center justify-center text-xl font-black border border-cyan-100 dark:border-cyan-800/50 shadow-sm">
-                      {patient.name ? patient.name.charAt(0) : '?'}
+                    
+                    {/* 🌟 التعديل هنا: عرض صورة المراجع الحقيقية */}
+                    <div className="w-14 h-14 rounded-2xl bg-[#E0F7FA] dark:bg-cyan-900/30 text-[#00838F] dark:text-cyan-400 flex items-center justify-center text-xl font-black border border-cyan-100 dark:border-cyan-800/50 shadow-sm overflow-hidden shrink-0">
+                      {patient.avatar_url || patient.image ? (
+                        <img src={patient.avatar_url || patient.image} alt={patient.name} className="w-full h-full object-cover" />
+                      ) : (
+                        patient.name ? patient.name.charAt(0) : '؟'
+                      )}
                     </div>
+
                     <div>
                       <h3 className="font-black text-gray-900 dark:text-white text-lg">{patient.name || 'مراجع مجهول الهوية'}</h3>
                       <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mt-1" dir="ltr">{patient.phone || 'الرقم غير مدون'}</p>
@@ -153,9 +162,12 @@ export const Patients: React.FC = () => {
                   <button onClick={() => handleOpenProfile(patient)} className="flex-1 flex items-center justify-center gap-2 py-3 bg-cyan-50 dark:bg-cyan-900/20 text-[#00838F] dark:text-cyan-400 hover:bg-[#00838F] hover:text-white dark:hover:bg-[#00838F] dark:hover:text-white rounded-xl font-bold text-sm transition-colors border border-cyan-100 dark:border-cyan-800/50">
                     <FileText size={18} /> فتح السجل
                   </button>
-                  <button className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white rounded-xl font-bold text-sm transition-colors border border-blue-100 dark:border-blue-800/50">
+                  
+                  {/* 🌟 التعديل هنا: زرار المراسلة بيحول على صفحة الرسائل الخاصة بالمريض */}
+                  <button onClick={() => navigate(`/doctor/messages?patientId=${patient.id}`)} className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white rounded-xl font-bold text-sm transition-colors border border-blue-100 dark:border-blue-800/50">
                     <MessageCircle size={18} /> مراسلة
                   </button>
+
                   <button className="w-12 flex items-center justify-center py-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white rounded-xl transition-colors shrink-0 border border-emerald-100 dark:border-emerald-800/50">
                     <Phone size={18} />
                   </button>
