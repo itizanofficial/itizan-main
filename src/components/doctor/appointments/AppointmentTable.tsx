@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
-  Phone, Mail, MoreVertical, Edit, Trash2, CheckCircle, 
+  Phone, Mail, Edit, Trash2, CheckCircle, 
   Clock, RefreshCw, MapPin, Video, PhoneCall, CalendarX 
 } from 'lucide-react';
 
 export const AppointmentTable = ({ appointments, onEdit, onDelete, onRemind, onConfirmCall }: any) => {
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-
+  
   const getModeIcon = (mode: string) => {
     if (!mode) return null;
     if (mode.includes('فيديو') || mode.includes('Online') || mode.includes('أونلاين')) return <Video size={14} className="text-purple-500" />;
@@ -16,11 +15,6 @@ export const AppointmentTable = ({ appointments, onEdit, onDelete, onRemind, onC
 
   return (
     <div className="overflow-x-auto min-h-[300px] relative pb-20 font-sans">
-      
-      {openMenuId && (
-        <div className="fixed inset-0 z-0" onClick={() => setOpenMenuId(null)}></div>
-      )}
-
       <table className="w-full text-right whitespace-nowrap table-auto">
         <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
           <tr>
@@ -60,13 +54,12 @@ export const AppointmentTable = ({ appointments, onEdit, onDelete, onRemind, onC
                   <div className="text-xs font-black text-[#00838F] dark:text-cyan-400 mt-1" dir="ltr">{apt.time}</div>
                 </td>
                 
-                {/* نوع الجلسة المدمج (بدون كلمة حضور بالعيادة) */}
+                {/* نوع الجلسة المدمج */}
                 <td className="py-4 px-6 text-center">
                   <div className="flex flex-col items-center gap-1.5">
                     <span className="inline-block px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-bold whitespace-nowrap">
                       {apt.session_type || 'كشف'}
                     </span>
-                    {/* 🌟 مش هيعرض أي حاجة تخص المكان إلا لو كان فيديو أو مكالمة */}
                     {apt.mode && apt.mode.trim() !== '' && apt.mode !== 'حضور بالعيادة' && (
                       <span className="flex items-center justify-center gap-1.5 px-2 py-1 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg shadow-sm w-max mx-auto text-[11px] font-bold text-gray-600 dark:text-gray-300">
                         {getModeIcon(apt.mode)} {apt.mode}
@@ -86,7 +79,7 @@ export const AppointmentTable = ({ appointments, onEdit, onDelete, onRemind, onC
                   )}
                 </td>
                 
-                {/* 🌟 دالة الحالة الشاملة والذكية 🌟 */}
+                {/* الحالة الشاملة */}
                 <td className="py-4 px-6 text-center">
                   {(() => {
                     const status = apt.rawStatus;
@@ -105,7 +98,6 @@ export const AppointmentTable = ({ appointments, onEdit, onDelete, onRemind, onC
                       return <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 rounded-full text-xs font-bold border border-emerald-100 dark:border-emerald-800"><CheckCircle size={14} /> مدفوع ومؤكد</span>;
                     }
                     if ((status === 'مؤكدة' || status === 'confirmed') && !isPaid) {
-                      // 🌟 التعديل هنا: خلينا النص "مؤكدة" وغيرنا اللون لأزرق شيك
                       return <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 rounded-full text-xs font-bold border border-blue-100 dark:border-blue-800"><CheckCircle size={14} /> مؤكدة</span>;
                     }
                     if ((status === 'قيد الانتظار' || status === 'scheduled' || !status) && isPaid) {
@@ -116,11 +108,11 @@ export const AppointmentTable = ({ appointments, onEdit, onDelete, onRemind, onC
                   })()}
                 </td>
                 
-                {/* الإجراءات */}
-                <td className="py-4 px-6 relative">
+                {/* 🌟 الإجراءات: تم إخراج جميع الأزرار لتكون واضحة ومباشرة */}
+                <td className="py-4 px-6 text-center">
                   <div className="flex items-center justify-center gap-2">
                     
-                    {/* زرار التأكيد المبدئي يظهر بس لو الجلسة لسة قيد الانتظار */}
+                    {/* زرار التأكيد المبدئي */}
                     {(apt.rawStatus === 'قيد الانتظار' || apt.rawStatus === 'scheduled') && (
                       <button 
                         onClick={() => onConfirmCall(apt)} 
@@ -131,21 +123,33 @@ export const AppointmentTable = ({ appointments, onEdit, onDelete, onRemind, onC
                       </button>
                     )}
 
-                    <button onClick={() => onRemind(apt)} className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-2 rounded-xl transition-colors border border-blue-100 dark:border-blue-800" title="إرسال إشعار للمراجع">
+                    {/* زرار التذكير */}
+                    <button 
+                      onClick={() => onRemind(apt)} 
+                      className="text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-600 dark:bg-blue-900/30 dark:hover:bg-blue-600 p-2 rounded-xl transition-colors shadow-sm border border-blue-100 dark:border-blue-800" 
+                      title="إرسال إشعار للمراجع"
+                    >
                       <Mail size={18} />
                     </button>
                     
-                    <div className="relative">
-                      <button onClick={() => setOpenMenuId(openMenuId === apt.id ? null : apt.id)} className="text-gray-400 hover:text-gray-900 dark:hover:text-white p-2 transition-colors relative z-10">
-                        <MoreVertical size={18} />
-                      </button>
-                      {openMenuId === apt.id && (
-                        <div className="absolute left-full top-0 ml-2 w-36 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-xl rounded-2xl py-2 z-20 flex flex-col animate-fade-in">
-                          <button onClick={() => { onEdit(apt); setOpenMenuId(null); }} className="flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 w-full text-right transition-colors"><Edit size={16} className="text-blue-500"/> تعديل الموعد</button>
-                          <button onClick={() => { onDelete(apt.id); setOpenMenuId(null); }} className="flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 w-full text-right transition-colors"><Trash2 size={16} /> إلغاء الحجز</button>
-                        </div>
-                      )}
-                    </div>
+                    {/* 🌟 زرار التعديل */}
+                    <button 
+                      onClick={() => onEdit(apt)} 
+                      className="text-amber-600 hover:text-white bg-amber-50 hover:bg-amber-600 dark:bg-amber-900/30 dark:hover:bg-amber-600 p-2 rounded-xl transition-colors shadow-sm border border-amber-100 dark:border-amber-800" 
+                      title="تعديل الموعد"
+                    >
+                      <Edit size={18} />
+                    </button>
+
+                    {/* 🌟 زرار الإلغاء */}
+                    <button 
+                      onClick={() => onDelete(apt.id)} 
+                      className="text-red-600 hover:text-white bg-red-50 hover:bg-red-600 dark:bg-red-900/30 dark:hover:bg-red-600 p-2 rounded-xl transition-colors shadow-sm border border-red-100 dark:border-red-800" 
+                      title="إلغاء الحجز"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+
                   </div>
                 </td>
               </tr>

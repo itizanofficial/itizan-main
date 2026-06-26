@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PhoneOff, FileText, Info, Clock, AlertTriangle, User, MapPin } from 'lucide-react';
+import { PhoneOff, FileText, Info, Clock, AlertTriangle, User, MapPin, Mic } from 'lucide-react';
 
 export const ActiveSessionRoom = ({ session, onLeave, onSaveNotes }: any) => {
   const [liveNotes, setLiveNotes] = useState({ 
@@ -10,10 +10,11 @@ export const ActiveSessionRoom = ({ session, onLeave, onSaveNotes }: any) => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // معرفة هل الجلسة حضورية بالعيادة أم أونلاين
-  const sessionTypeStr = session.session_type || '';
-  const isOnlineType = sessionTypeStr.includes('فيديو') || sessionTypeStr.includes('مرئية') || sessionTypeStr.includes('Online');
-  const isClinic = !isOnlineType;
+  // 🌟 اللوجيك الذكي للتعرف على نوع الجلسة بدقة
+  const modeStr = session.mode || session.session_type || '';
+  const isAudio = modeStr.includes('صوت') || modeStr.includes('مكالمة');
+  const isVideo = modeStr.includes('فيديو') || modeStr.includes('مرئية') || modeStr.includes('Online');
+  const isOnlineType = isVideo || isAudio;
 
   useEffect(() => {
     const timerInterval = setInterval(() => {
@@ -37,6 +38,12 @@ export const ActiveSessionRoom = ({ session, onLeave, onSaveNotes }: any) => {
     setIsSaving(false);
     setShowConfirmDialog(false);
   };
+
+  // 🌟 تجهيز رابط Jitsi (لو صوتية بنقفل الكاميرا إجبارياً من السيرفر)
+  let jitsiUrl = `https://meet.jit.si/${roomName}#config.prejoinPageEnabled=false&config.requireDisplayName=false&userInfo.displayName="الطبيب المعالج"`;
+  if (isAudio) {
+    jitsiUrl += `&config.startAudioOnly=true&config.startWithVideoMuted=true`;
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-gray-900 rounded-[2rem] p-6 text-white min-h-[650px] animate-fade-in border border-gray-800 shadow-2xl font-sans relative">
@@ -62,34 +69,37 @@ export const ActiveSessionRoom = ({ session, onLeave, onSaveNotes }: any) => {
         </div>
       )}
 
-      {/* الجزء الخاص بمكالمة الفيديو أو مساحة العيادة الحضورية */}
+      {/* الجزء الخاص بمكالمة الفيديو/الصوت أو مساحة العيادة الحضورية */}
       <div className="lg:col-span-7 flex flex-col justify-between h-full bg-black rounded-[1.5rem] overflow-hidden border border-gray-700 relative min-h-[400px]">
         
         {isOnlineType ? (
           <>
-            {/* يظهر التايمر فقط لو كانت الجلسة أونلاين */}
+            {/* التايمر للجلسات الأونلاين */}
             <div className="absolute top-4 left-4 z-10 bg-black/60 backdrop-blur-md px-4 py-2 rounded-xl border border-gray-700 flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-              <Clock size={16} className="text-gray-300" />
+              {isAudio ? <Mic size={16} className="text-gray-300" /> : <Clock size={16} className="text-gray-300" />}
               <span className="font-mono font-bold text-white tracking-widest">{formatTime(secondsElapsed)}</span>
             </div>
 
             <iframe
-              src={`https://meet.jit.si/${roomName}#config.prejoinPageEnabled=false&config.requireDisplayName=false&userInfo.displayName="الطبيب المعالج"`}
+              src={jitsiUrl}
               allow="camera; microphone; fullscreen; display-capture; autoplay"
               style={{ width: '100%', height: '100%', border: 0 }}
             />
           </>
         ) : (
-          /* 🌟 إذا كانت الجلسة حضورية بالعيادة: يتم إخفاء التايمر تماماً وعرض واجهة عمل شيك ومريحة للعين */
+          /* 🌟 إذا كانت الجلسة حضورية بالعيادة: نعرض واجهة شيك والتايمر شغال لايف قدام الدكتور */
           <div className="flex-1 flex flex-col items-center justify-center p-8 bg-gradient-to-br from-gray-950 to-gray-900 text-center gap-4">
             <div className="w-20 h-20 rounded-full bg-[#00838F]/10 border border-[#00838F]/30 flex items-center justify-center text-[#00838F] mb-2 animate-pulse">
               <User size={40} />
             </div>
             <h3 className="text-xl font-black text-white">جلسة حضورية قائمة بالعيادة</h3>
             <p className="text-gray-400 text-sm max-w-xs font-bold">المريض: {session.patient?.name || 'غير مسجل'}</p>
-            <div className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20 font-bold mt-2">
-              <MapPin size={14} /> التايمر الذكي يحسب الوقت الفعلي حالياً في الخلفية
+            
+            {/* 🌟 التايمر اللايف لجلسات الحضور */}
+            <div className="flex items-center gap-2 text-emerald-400 bg-emerald-500/10 px-4 py-2.5 rounded-xl border border-emerald-500/20 font-bold mt-2">
+              <Clock size={16} className="animate-pulse" /> 
+              <span className="font-mono tracking-widest">وقت الجلسة المستغرق: {formatTime(secondsElapsed)}</span>
             </div>
           </div>
         )}
