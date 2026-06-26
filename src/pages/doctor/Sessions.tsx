@@ -54,8 +54,12 @@ export const Sessions: React.FC = () => {
   useEffect(() => { loadData(); }, []);
 
   const filteredSessions = sessions.filter(s => {
+    // 🌟 التعديل الصارم: الجلسة لازم تكون مدفوعة (paid) وحالتها مقبولة
+    const isPaid = s.payment_status === 'paid';
     const isApprovedStatus = s.status === 'مؤكدة' || s.status === 'confirmed' || s.status === 'مكتملة' || s.status === 'completed' || s.status === 'فائتة' || s.status === 'missed';
-    if (!isApprovedStatus) return false;
+
+    // لو مش مدفوعة أو حالتها مش مقبولة، اطردها بره فوراً وماتظهرش للدكتور
+    if (!isPaid || !isApprovedStatus) return false;
 
     const matchSearch = s.patient?.name?.toLowerCase().includes(searchQuery.toLowerCase()) || s.session_type?.toLowerCase().includes(searchQuery.toLowerCase());
     
@@ -67,7 +71,8 @@ export const Sessions: React.FC = () => {
   });
 
   const today = new Date().toISOString().split('T')[0];
-  const todayCount = sessions.filter(s => s.session_date?.startsWith(today) && (s.status === 'مؤكدة' || s.status === 'confirmed')).length;
+  // 🌟 عدلنا العداد بتاع اليوم عشان ميعتبرش الجلسة محسوبة غير لو مدفوعة
+  const todayCount = sessions.filter(s => s.session_date?.startsWith(today) && (s.status === 'مؤكدة' || s.status === 'confirmed') && s.payment_status === 'paid').length;
   const completedCount = sessions.filter(s => s.status === 'مكتملة' || s.status === 'completed').length;
 
   const handleCreateSession = async (e: React.FormEvent) => {

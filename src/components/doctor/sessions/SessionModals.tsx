@@ -35,6 +35,7 @@ export const SessionModals = ({
                   {patients.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
+              
               <div className="flex gap-4">
                 <div className="flex-1">
                   <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300">تاريخ الجلسة</label>
@@ -45,14 +46,31 @@ export const SessionModals = ({
                   <input type="time" required className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3.5 text-gray-900 dark:text-white outline-none focus:border-[#00838F] focus:ring-4 focus:ring-cyan-500/10 transition-all font-bold text-sm cursor-pointer" onChange={e => setFormData({...formData, time: e.target.value})} />
                 </div>
               </div>
+
               <div>
-                <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300">مكان/نوع الجلسة</label>
+                <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300">مكان/طريقة الجلسة</label>
                 <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl p-3.5 outline-none focus:border-[#00838F] focus:ring-4 focus:ring-cyan-500/10 transition-all font-bold text-sm cursor-pointer">
                   <option value="حضور بالعيادة">حضور بالعيادة</option>
                   <option value="مكالمة فيديو">أونلاين (فيديو)</option>
                   <option value="مكالمة صوتية">مكالمة هاتفية</option>
                 </select>
               </div>
+
+              {/* 🌟 التعديل الجديد: كشف ولا إعادة */}
+              <div className="bg-cyan-50/50 dark:bg-gray-800 p-4 rounded-xl border border-cyan-100 dark:border-gray-700">
+                <label className="block text-sm font-bold text-[#00838F] dark:text-cyan-400 mb-3">نوع الحجز</label>
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer font-bold text-gray-700 dark:text-gray-300 text-sm">
+                    <input type="radio" name="session_type" value="كشف" checked={formData.session_type === 'كشف' || !formData.session_type} onChange={e => setFormData({...formData, session_type: e.target.value})} className="text-[#00838F]" />
+                    كشف جديد
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer font-bold text-gray-700 dark:text-gray-300 text-sm">
+                    <input type="radio" name="session_type" value="إعادة" checked={formData.session_type === 'إعادة'} onChange={e => setFormData({...formData, session_type: e.target.value})} className="text-[#00838F]" />
+                    إعادة / متابعة
+                  </label>
+                </div>
+              </div>
+
               <button type="submit" className="w-full bg-[#00838F] hover:bg-[#006064] text-white py-4 rounded-2xl font-black mt-2 transition-colors shadow-md">حفظ الموعد</button>
             </form>
           </div>
@@ -70,10 +88,9 @@ export const SessionModals = ({
             <div className="p-8">
               <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
                 <div className="text-center"><p className="text-xs font-bold text-gray-400 mb-1.5">اسم المريض</p><p className="text-lg font-black">{selectedSession.patient?.name}</p></div>
-                <div className="text-center"><p className="text-xs font-bold text-gray-400 mb-1.5">نوع الجلسة</p><p className="text-lg font-black">{selectedSession.session_type}</p></div>
+                <div className="text-center"><p className="text-xs font-bold text-gray-400 mb-1.5">نوع الجلسة</p><p className="text-lg font-black">{selectedSession.session_type || 'كشف'}</p></div>
                 <div className="text-center"><p className="text-xs font-bold text-gray-400 mb-1.5">وقت الجلسة</p><p className="text-lg font-black" dir="ltr">{formatDate(selectedSession.session_date).date} <span className="text-[#00838F]">{formatDate(selectedSession.session_date).time}</span></p></div>
                 
-                {/* 🌟 عرض مدة الجلسة الفعلية لو كانت محفوظة */}
                 {selectedSession.clinical_notes?.actualDuration && (
                   <div className="text-center"><p className="text-xs font-bold text-emerald-500 mb-1.5">مدة الجلسة الفعلية</p><p className="text-lg font-black text-emerald-600">{selectedSession.clinical_notes.actualDuration} د</p></div>
                 )}

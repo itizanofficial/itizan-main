@@ -217,7 +217,7 @@ export const DailyTasksManager: React.FC<DailyTasksManagerProps> = ({ patientId 
                     <h4 className="font-black text-lg text-gray-900 dark:text-white flex items-center gap-2">
                       <ListChecks size={20} className="text-[#00838F]" /> قائمة المهام المعتمدة:
                     </h4>
-                    <button onClick={() => handleDeletePlan(plan.id)} className="text-gray-300 hover:text-red-500 transition-colors bg-gray-50 dark:bg-gray-900 p-1.5 rounded-lg" title="إلغاء الخطة">
+                    <button onClick={() => handleDeletePlan(plan.id)} className="text-red-400 hover:text-red-500 transition-colors bg-gray-50 dark:bg-gray-900 p-1.5 rounded-lg" title="إلغاء الخطة">
                       <Trash2 size={16} />
                     </button>
                   </div>

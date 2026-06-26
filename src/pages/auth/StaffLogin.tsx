@@ -9,7 +9,7 @@ export default function StaffLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleStaffLogin = async (e: React.FormEvent) => {
+ const handleStaffLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMsg('');
@@ -24,39 +24,47 @@ export default function StaffLogin() {
       if (authError) throw new Error('البريد الإلكتروني أو كلمة المرور غير صحيحة');
       if (!authData.user) throw new Error('حدث خطأ أثناء تسجيل الدخول');
 
-      // 2. 🌟 البحث في جدول الأطباء
-      const { data: doctorData } = await supabase
+      const userId = authData.user.id;
+      console.log("🟢 تم تسجيل الدخول بنجاح! الـ ID بتاع المستخدم الحالي هو:", userId);
+
+      // 2. البحث في جدول الأطباء
+      const { data: doctorData, error: docError } = await supabase
         .from('doctors')
         .select('id')
-        .eq('id', authData.user.id)
+        .eq('id', userId)
         .maybeSingle();
 
+      if (docError) console.error("❌ خطأ أثناء القراءة من جدول الدكاترة (احتمال RLS):", docError);
+
       if (doctorData) {
-        // لو دكتور، دخله داشبورد الدكتور
+        console.log("🩺 تم التعرف على المستخدم كـ (طبيب):", doctorData);
         navigate('/doctor/dashboard');
         return;
       }
 
-      // 3. 🌟 البحث في جدول السكرتارية
-      const { data: secretaryData } = await supabase
+      // 3. البحث في جدول السكرتارية
+      const { data: secretaryData, error: secError } = await supabase
         .from('secretaries')
         .select('id')
-        .eq('id', authData.user.id)
+        .eq('id', userId)
         .maybeSingle();
 
+      if (secError) console.error("❌ خطأ أثناء القراءة من جدول السكرتارية (احتمال RLS):", secError);
+      console.log("📋 نتيجة البحث في جدول السكرتارية (لو فاضي يعني الـ ID مش مطابق أو RLS مقفول):", secretaryData);
+
       if (secretaryData) {
-        // لو سكرتير، دخله داشبورد السكرتارية
-        navigate('/secretary/dashboard'); // تأكد إن المسار ده صح عندك
+        console.log("💼 تم التعرف على المستخدم كـ (سكرتير)، جاري التوجيه...");
+        navigate('/secretary/reservations'); 
         return;
       }
 
-      // 🛑 4. لو ملقاهوش في الدكاترة ولا السكرتارية، إطرده! (ممكن يكون مريض أو أدمن بيحاول يدخل هنا)
+      // 🛑 4. الطرد لو ملقاش الـ ID في الجدولين
       await supabase.auth.signOut();
-      throw new Error('عذراً، هذه البوابة مخصصة للأطباء والسكرتارية فقط.');
+      throw new Error('عذراً، هذه البوابة مخصصة للأطباء والسكرتارية المسجلين فقط.');
 
     } catch (error: any) {
       setErrorMsg(error.message);
-    } finally {
+    } {
       setIsLoading(false);
     }
   };
@@ -66,7 +74,7 @@ export default function StaffLogin() {
       <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-[2.5rem] shadow-xl p-8 border border-gray-100 dark:border-gray-700">
         
         <div className="text-center mb-10">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg shadow-blue-500/30 rotate-3 hover:rotate-0 transition-transform duration-300">
+          <div className="w-16 h-16 bg-[#00838F] rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg shadow-cyan-500/30 rotate-3 hover:rotate-0 transition-transform duration-300">
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
@@ -84,15 +92,35 @@ export default function StaffLogin() {
         <form onSubmit={handleStaffLogin} className="space-y-5">
           <div>
             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 mr-1">البريد الإلكتروني</label>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 rounded-2xl border border-gray-200 bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-4 focus:ring-blue-500/10 focus:bg-white focus:border-blue-600 outline-none font-medium text-left transition-all" dir="ltr" placeholder="doctor@clinic.com" />
+            <input 
+              type="email" 
+              required 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              className="w-full px-5 py-3.5 rounded-2xl border border-gray-200 bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-4 focus:ring-cyan-500/10 focus:bg-white focus:border-[#00838F] outline-none font-medium text-left transition-all" 
+              dir="ltr" 
+              placeholder="staff@clinic.com" 
+            />
           </div>
           
           <div>
             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 mr-1">كلمة المرور</label>
-            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-5 py-3.5 rounded-2xl border border-gray-200 bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-4 focus:ring-blue-500/10 focus:bg-white focus:border-blue-600 outline-none font-medium text-left font-sans transition-all" dir="ltr" placeholder="••••••••" />
+            <input 
+              type="password" 
+              required 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+              className="w-full px-5 py-3.5 rounded-2xl border border-gray-200 bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-4 focus:ring-cyan-500/10 focus:bg-white focus:border-[#00838F] outline-none font-medium text-left font-sans transition-all" 
+              dir="ltr" 
+              placeholder="••••••••" 
+            />
           </div>
           
-          <button type="submit" disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-blue-500/30 active:scale-[0.98] mt-2 disabled:opacity-70 flex justify-center items-center gap-2">
+          <button 
+            type="submit" 
+            disabled={isLoading} 
+            className="w-full bg-[#00838F] hover:bg-[#006064] text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-cyan-500/30 active:scale-[0.98] mt-2 disabled:opacity-70 flex justify-center items-center gap-2"
+          >
             {isLoading ? 'جاري التحقق...' : 'تسجيل الدخول'}
           </button>
         </form>

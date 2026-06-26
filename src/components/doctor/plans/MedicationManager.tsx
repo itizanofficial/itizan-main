@@ -166,7 +166,7 @@ export const MedicationManager: React.FC<MedicationManagerProps> = ({ patientId 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {meds.map(med => (
               <div key={med.id} className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm relative">
-                <button onClick={() => handleDeleteMeds(med.id)} className="absolute top-4 left-4 text-gray-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors" title="إيقاف العلاج وإزالته"><Trash2 size={18} /></button>
+                <button onClick={() => handleDeleteMeds(med.id)} className="absolute top-4 left-4 text-red-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors" title="إيقاف العلاج وإزالته"><Trash2 size={18} /></button>
                 <div className="flex items-start gap-3">
                   <div className="p-3 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 text-[#00838F] dark:text-cyan-400"><Pill size={22} /></div>
                   <div className="text-right flex-1">

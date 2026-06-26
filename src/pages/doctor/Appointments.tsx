@@ -37,26 +37,23 @@ export const Appointments: React.FC = () => {
       const formatted = (data || []).map((apt: any) => {
         const dateObj = apt.session_date ? new Date(apt.session_date) : new Date();
         const yyyyMmDd = dateObj.toLocaleDateString('en-CA'); 
-        const hhMm = dateObj.toLocaleTimeString('en-US', { hour12: false }).substring(0, 5);
-
-        let arabicStatus = 'بانتظار التأكيد';
-        if (apt.status === 'completed' || apt.status === 'confirmed' || apt.status === 'مؤكدة') arabicStatus = 'موعد مؤكد';
-        if (apt.status === 'cancelled' || apt.status === 'ملغاة') arabicStatus = 'ملغي';
-        if (apt.status === 'scheduled' || apt.status === 'مجدولة') arabicStatus = 'بانتظار التأكيد';
-        if (apt.status === 'rescheduled' || apt.status === 'معدلة') arabicStatus = 'تم التعديل';
+        
+        const timeStr = dateObj.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });
 
         return {
           id: apt.id,
           patientId: apt.patient?.id || apt.patient_id,
-          patientName: apt.patient?.name || 'مريض غير مسجل',
-          age: apt.patient?.dob ? calculateAge(apt.patient.dob) : '---', 
+          patientName: apt.patient?.name || apt.patient?.full_name || 'مريض غير مسجل',
+          age: (apt.patient?.dob || apt.patient?.birth_date) ? calculateAge(apt.patient?.dob || apt.patient?.birth_date) : '---', 
           phone: apt.patient?.phone || '---',
           date: yyyyMmDd,
-          time: hhMm,
-          type: apt.diagnosis || 'كشف عام', 
-          mode: apt.session_type || 'حضور بالعيادة', 
-          status: arabicStatus,
-          rawStatus: apt.status
+          time: timeStr,
+          session_type: apt.session_type || 'كشف', 
+          mode: apt.mode || '', 
+          diagnosis: apt.diagnosis || '',
+          status: apt.status,
+          rawStatus: apt.status,
+          payment_status: apt.payment_status || 'unpaid'
         };
       });
 
@@ -84,7 +81,22 @@ export const Appointments: React.FC = () => {
   const filteredAppointments = appointments.filter(apt => {
     const matchSearch = (apt.patientName && apt.patientName.toLowerCase().includes(searchTerm.toLowerCase())) || 
                         (apt.phone && apt.phone.includes(searchTerm));
-    const matchStatus = statusFilter === 'الكل' || apt.status === statusFilter;
+    
+    // 🌟 البوابة الصارمة: تحديد حالة الجلسة بناءً على الدفع والتأكيد معاً
+    const isPaidAndConfirmed = (apt.rawStatus === 'مؤكدة' || apt.rawStatus === 'confirmed' || apt.rawStatus === 'مكتملة') && apt.payment_status === 'paid';
+    
+    // لو الجلسة بقت (مدفوعة ومؤكدة)، الديفولت إننا نخفيها من هنا عشان تروح لصفحة الجلسات مباشرة
+    // إلا لو الدكتور اختار فلتر "مؤكد ومدفوع" عشان يراجعهم
+    if (isPaidAndConfirmed && statusFilter !== 'مؤكد ومدفوع') {
+      return false; // 🚫 طرد من شاشة الحجوزات، دي بقت جلسة خلاص
+    }
+
+    const isPending = !isPaidAndConfirmed && apt.rawStatus !== 'ملغاة' && apt.rawStatus !== 'cancelled';
+    
+    let matchStatus = true;
+    if (statusFilter === 'مؤكد ومدفوع') matchStatus = isPaidAndConfirmed;
+    if (statusFilter === 'بانتظار الدفع/التأكيد') matchStatus = isPending;
+
     return matchSearch && matchStatus;
   });
 
@@ -93,15 +105,27 @@ export const Appointments: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // 🌟 التعديل الخطير: هنجيب بيانات الدكتور عشان الـ admin_id والأسعار
+      const { data: doctorData } = await supabase.from('doctors').select('admin_id, consultation_price, followup_price').eq('id', user.id).single();
+
       const combinedDateTime = new Date(`${data.date}T${data.time}:00`).toISOString();
+
+      // 🌟 حساب التسعيرة عشان السكرتير يشوف الرقم صح ويدفعه
+      const fees = data.session_type === 'كشف' 
+        ? Number(doctorData?.consultation_price || 0) 
+        : Number(doctorData?.followup_price || 0);
 
       const sessionPayload = {
         doctor_id: user.id,
+        admin_id: doctorData?.admin_id, // 🌟 أهم سطر عشان السكرتير يشوف الحجز!
         patient_id: data.patientId,
         session_date: combinedDateTime,
-        session_type: data.mode,
-        diagnosis: data.type, 
-        status: data.id ? data.rawStatus : 'scheduled'
+        session_type: data.session_type || 'كشف',
+        mode: data.mode || 'حضور بالعيادة',
+        diagnosis: data.diagnosis || '', 
+        fees: fees, // 🌟 الفلوس
+        status: data.id ? data.rawStatus : 'قيد الانتظار',
+        payment_status: data.id ? data.payment_status : 'unpaid'
       };
 
       if (data.id) {
@@ -110,10 +134,14 @@ export const Appointments: React.FC = () => {
         toast.success('تم تعديل الحجز بنجاح.');
       } else {
         await supabase.from('sessions').insert([sessionPayload]);
-        await doctorService.sendPatientNotification(data.patientId, 'تم حجز موعد جديد 📅', `تم حجز موعد جديد لك (${data.mode}) يوم ${data.date} الساعة ${data.time}.`);
-        toast.success('تم حجز الموعد بنجاح.');
+        await doctorService.sendPatientNotification(data.patientId, 'تم حجز موعد جديد 📅', `تم حجز موعد مبدئي لك (${data.mode}) يوم ${data.date} الساعة ${data.time}. في انتظار تأكيد الدفع.`);
+        toast.success('تم حجز الموعد المبدئي بنجاح.');
       }
       setIsModalOpen(false);
+      
+      // 🌟 تحديث فوري للحالة عشان الجدول ميفضلش معلق
+      fetchAppointments(); 
+
     } catch (error: any) {
       toast.error('حصلت مشكلة أثناء الحفظ.');
     }
@@ -131,6 +159,7 @@ export const Appointments: React.FC = () => {
               try {
                 await supabase.from('sessions').delete().eq('id', id);
                 toast.success('تم إلغاء الحجز بنجاح.');
+                fetchAppointments(); // 🌟 تحديث فوري
               } catch (error) {
                 toast.error('تعذر إلغاء الحجز حالياً.');
               }
@@ -156,25 +185,24 @@ export const Appointments: React.FC = () => {
   const handleConfirmCall = async (apt: any) => {
     toast((t) => (
       <div className="flex flex-col gap-2 font-sans" dir="rtl">
-        <span className="font-bold text-gray-800">تأكيد حجز المريض: {apt.patientName}؟</span>
+        <span className="font-bold text-gray-800">تأكيد مبدئي لحجز: {apt.patientName}؟</span>
         <div className="flex gap-2 justify-end mt-1">
           <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200">إلغاء</button>
           <button 
             onClick={async () => {
               toast.dismiss(t.id);
               try {
-                // 🌟 استخدام الدالة المدرعة من السيرفيس بدلاً من المناداة المباشرة
                 await doctorService.updateSessionStatus(apt.id, 'confirmed');
-                await doctorService.sendPatientNotification(apt.patientId, 'تم تأكيد حجزك ✅', `تم تأكيد موعد جلستك يوم ${apt.date} الساعة ${apt.time} بنجاح.`, 'system');
-                toast.success('تم تأكيد الحجز بنجاح!');
+                await doctorService.sendPatientNotification(apt.patientId, 'تأكيد مبدئي ✅', `تم الموافقة على الموعد يوم ${apt.date} الساعة ${apt.time} مبدئياً. يرجى إتمام الدفع لتأكيد الحجز النهائي.`, 'system');
+                toast.success('تم التأكيد المبدئي بنجاح!');
+                fetchAppointments(); // 🌟 تحديث فوري للحالة
               } catch (error: any) {
-                console.error("❌ إيرور التأكيد:", error);
-                toast.error('حدث خطأ أثناء التأكيد. المرجو مراجعة الصلاحيات.');
+                toast.error('حدث خطأ أثناء التأكيد.');
               }
             }} 
             className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700"
           >
-            تأكيد الحجز
+            تأكيد مبدئي
           </button>
         </div>
       </div>
@@ -187,7 +215,7 @@ export const Appointments: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-gray-900 dark:text-white">إدارة الحجوزات</h1>
-          <p className="text-gray-500 dark:text-gray-400 font-bold text-sm mt-1">مراجعة وتأكيد حجوزات المراجعين.</p>
+          <p className="text-gray-500 dark:text-gray-400 font-bold text-sm mt-1">متابعة حجوزات المراجعين مع الاستقبال.</p>
         </div>
         <button onClick={() => { setEditingData(null); setIsModalOpen(true); }} className="bg-[#00838F] hover:bg-[#006064] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-md text-sm active:scale-95">
           <Plus size={20} /> <span className="text-white">حجز جديد</span>
@@ -210,7 +238,7 @@ export const Appointments: React.FC = () => {
 
           <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0 bg-white dark:bg-gray-900">
             <Filter size={18} className="text-gray-400 shrink-0" />
-            {['الكل', 'موعد مؤكد', 'بانتظار التأكيد', 'تم التعديل'].map(filter => (
+            {['الكل', 'مؤكد ومدفوع', 'بانتظار الدفع/التأكيد'].map(filter => (
               <button 
                 key={filter} 
                 onClick={() => setStatusFilter(filter)} 

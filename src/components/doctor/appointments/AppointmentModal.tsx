@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, Clock, User, Activity, Video, Loader2 } from 'lucide-react';
+import { X, Calendar, Clock, User, Activity, Video, Loader2, MapPin } from 'lucide-react';
 import { doctorService } from '../../../services/doctorService';
 import { supabase } from '../../../services/supabase';
 
@@ -17,48 +17,52 @@ const calculateAge = (dobString: string) => {
 
 export const AppointmentModal = ({ isOpen, onClose, onSave, editingData }: any) => {
   const [formData, setFormData] = useState({
-    id: '',
-    patientId: '',
-    patientName: '', 
-    age: '', 
-    phone: '', 
-    date: '', 
-    time: '', 
-    type: '', 
-    mode: 'حضور بالعيادة',
+    id: '', patientId: '', patientName: '', age: '', phone: '', date: '', time: '', 
+    type: '', // التشخيص
+    mode: 'حضور بالعيادة', // مكان الجلسة
+    session_type: 'كشف', // 🌟 كشف ولا إعادة
     rawStatus: 'scheduled'
   });
 
   const [myPatients, setMyPatients] = useState<any[]>([]);
+  const [doctorInfo, setDoctorInfo] = useState<any>(null); // 🌟 لحفظ الـ admin_id والتسعيرة
   const [loadingPatients, setLoadingPatients] = useState(false);
 
   useEffect(() => {
-    const loadDoctorPatients = async () => {
+    const loadInitialData = async () => {
       if (!isOpen) return;
       try {
         setLoadingPatients(true);
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
+          // جلب مرضى الدكتور
           const list = await doctorService.getDoctorPatients(user.id);
           setMyPatients(list || []);
+
+          // 🌟 جلب بيانات الدكتور نفسه (عشان ناخد التسعيرة والآدمن)
+          const { data: docData } = await supabase.from('doctors').select('*').eq('id', user.id).single();
+          setDoctorInfo(docData);
         }
       } catch (err) {
-        console.error("Fetch patients failed:", err);
+        console.error("Fetch data failed:", err);
       } finally {
         setLoadingPatients(false);
       }
     };
-    loadDoctorPatients();
+    loadInitialData();
   }, [isOpen]);
 
   useEffect(() => {
     if (editingData) {
-      setFormData(editingData);
+      setFormData({
+        ...editingData,
+        session_type: editingData.session_type || 'كشف',
+        mode: editingData.mode || 'حضور بالعيادة'
+      });
     } else {
       setFormData({ 
         id: '', patientId: '', patientName: '', age: '', phone: '', date: '', time: '', 
-        type: '', 
-        mode: 'حضور بالعيادة', rawStatus: 'scheduled'
+        type: '', mode: 'حضور بالعيادة', session_type: 'كشف', rawStatus: 'scheduled'
       });
     }
   }, [editingData, isOpen]);
@@ -69,7 +73,7 @@ export const AppointmentModal = ({ isOpen, onClose, onSave, editingData }: any) 
       setFormData({
         ...formData,
         patientId: selected.id,
-        patientName: selected.name,
+        patientName: selected.name || selected.full_name,
         age: selected.birth_date ? String(calculateAge(selected.birth_date)) : '---', 
         phone: selected.phone || '---'
       });
@@ -78,23 +82,35 @@ export const AppointmentModal = ({ isOpen, onClose, onSave, editingData }: any) 
     }
   };
 
+  // 🌟 دالة الحفظ الذكية اللي بتحسب الفلوس وتبعتها
+  const handleSaveClick = () => {
+    let fees = 0;
+    if (doctorInfo) {
+      fees = formData.session_type === 'كشف' 
+        ? Number(doctorInfo.consultation_price || 0) 
+        : Number(doctorInfo.followup_price || 0);
+    }
+
+    onSave({
+      ...formData,
+      admin_id: doctorInfo?.admin_id, // بنبعت الآدمن عشان السكرتير يشوف الجلسة
+      fees: fees // بنبعت الفلوس
+    });
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in" dir="rtl">
-      <div className="bg-white dark:bg-gray-900 w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
+      <div className="bg-white dark:bg-gray-900 w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 font-sans">
         
-        {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
-          <h2 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
-            <Calendar className="text-[#00838F]" /> {editingData ? 'تعديل بيانات الحجز' : 'حجز موعد جديد'}
+        <div className="flex justify-between items-center p-6 border-b border-gray-100 dark:border-gray-800 bg-[#00838F] text-white">
+          <h2 className="text-xl font-black flex items-center gap-2">
+            <Calendar /> {editingData ? 'تعديل بيانات الحجز' : 'حجز موعد جديد'}
           </h2>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors">
-            <X size={20} />
-          </button>
+          <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-full transition-colors"><X size={20} /></button>
         </div>
 
-        {/* Body (Form) */}
         <div className="p-6 space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             
@@ -102,14 +118,14 @@ export const AppointmentModal = ({ isOpen, onClose, onSave, editingData }: any) 
               <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">اسم المراجع</label>
               <div className="relative">
                 {loadingPatients ? (
-                  <div className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-gray-400 flex items-center gap-2 text-xs font-bold">
+                  <div className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-2 text-xs font-bold">
                     <Loader2 size={14} className="animate-spin text-[#00838F]" /> جاري تحميل المرضى...
                   </div>
                 ) : (
-                  <select value={formData.patientId} onChange={(e) => handlePatientSelect(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-10 py-3 outline-none focus:border-[#00838F] dark:text-white appearance-none font-bold text-sm cursor-pointer" disabled={!!editingData}>
-                    <option value="">-- اختر المراجع من القائمة --</option>
+                  <select value={formData.patientId} onChange={(e) => handlePatientSelect(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-10 py-3 outline-none focus:border-[#00838F] font-bold text-sm cursor-pointer" disabled={!!editingData}>
+                    <option value="" disabled>-- اختر المراجع من القائمة --</option>
                     {myPatients.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
+                      <option key={p.id} value={p.id}>{p.name || p.full_name}</option>
                     ))}
                   </select>
                 )}
@@ -120,18 +136,18 @@ export const AppointmentModal = ({ isOpen, onClose, onSave, editingData }: any) 
             <div className="flex gap-4">
                <div className="w-1/3">
                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">العمر</label>
-                 <input type="text" readOnly value={formData.age} className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 outline-none text-gray-500 cursor-not-allowed text-center font-bold" />
+                 <input type="text" readOnly value={formData.age} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-4 py-3 outline-none text-gray-500 cursor-not-allowed text-center font-bold" />
                </div>
                <div className="flex-1">
                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">رقم الموبايل</label>
-                 <input type="text" readOnly value={formData.phone} className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 outline-none text-gray-500 cursor-not-allowed text-center font-bold" dir="ltr" />
+                 <input type="text" readOnly value={formData.phone} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-4 py-3 outline-none text-gray-500 cursor-not-allowed text-center font-bold" dir="ltr" />
                </div>
             </div>
             
             <div>
               <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">تاريخ الجلسة</label>
               <div className="relative">
-                <input type="date" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-10 py-3 outline-none focus:border-[#00838F] dark:text-white text-sm font-bold cursor-pointer" />
+                <input type="date" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-10 py-3 outline-none focus:border-[#00838F] text-sm font-bold" />
                 <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 text-[#00838F]" size={18} />
               </div>
             </div>
@@ -139,46 +155,56 @@ export const AppointmentModal = ({ isOpen, onClose, onSave, editingData }: any) 
             <div>
               <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">وقت الجلسة</label>
               <div className="relative">
-                <input type="time" value={formData.time} onChange={(e) => setFormData({...formData, time: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-10 py-3 outline-none focus:border-[#00838F] dark:text-white text-sm font-bold cursor-pointer" />
+                <input type="time" value={formData.time} onChange={(e) => setFormData({...formData, time: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-10 py-3 outline-none focus:border-[#00838F] text-sm font-bold" />
                 <Clock className="absolute right-3 top-1/2 -translate-y-1/2 text-[#00838F]" size={18} />
               </div>
             </div>
 
+            {/* 🌟 مكان הגلسة */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">نوع الجلسة (المكان)</label>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">مكان / طريقة الجلسة</label>
               <div className="relative">
-                <select value={formData.mode} onChange={(e) => setFormData({...formData, mode: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-10 py-3 outline-none focus:border-[#00838F] dark:text-white appearance-none font-bold text-sm cursor-pointer">
+                <select value={formData.mode} onChange={(e) => setFormData({...formData, mode: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-10 py-3 outline-none focus:border-[#00838F] font-bold text-sm">
                   <option value="حضور بالعيادة">حضور بالعيادة</option>
                   <option value="فيديو">أونلاين (فيديو)</option>
                   <option value="صوتية">مكالمة هاتفية</option>
                 </select>
-                <Video className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               </div>
             </div>
 
+            {/* التشخيص */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">نوع الكشف / التشخيص المبدئي</label>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">التشخيص المبدئي</label>
               <div className="relative">
-                <input 
-                  type="text" 
-                  value={formData.type} 
-                  onChange={(e) => setFormData({...formData, type: e.target.value})} 
-                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-10 py-3 outline-none focus:border-[#00838F] dark:text-white text-sm font-bold" 
-                  placeholder="مثال: جلسة متابعة، كشف جديد، CBT..." 
-                />
+                <input type="text" value={formData.type} onChange={(e) => setFormData({...formData, type: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-10 py-3 outline-none focus:border-[#00838F] text-sm font-bold" placeholder="مثال: جلسة CBT..." />
                 <Activity className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              </div>
+            </div>
+
+            {/* 🌟 تحديد كشف ولا إعادة */}
+            <div className="col-span-1 md:col-span-2 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+              <label className="block text-sm font-bold text-[#00838F] mb-3">نوع الحجز (للسكرتارية والماليات)</label>
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-gray-700">
+                  <input type="radio" name="session_type" value="كشف" checked={formData.session_type === 'كشف'} onChange={e => setFormData({...formData, session_type: e.target.value})} className="text-[#00838F]" />
+                  كشف جديد
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-gray-700">
+                  <input type="radio" name="session_type" value="إعادة" checked={formData.session_type === 'إعادة'} onChange={e => setFormData({...formData, session_type: e.target.value})} className="text-[#00838F]" />
+                  إعادة / متابعة
+                </label>
               </div>
             </div>
 
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 flex items-center justify-end">
+        <div className="p-6 border-t border-gray-100 bg-gray-50 flex items-center justify-end">
           <div className="flex gap-3">
-            <button onClick={onClose} className="px-6 py-2.5 rounded-xl font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">إلغاء</button>
+            <button onClick={onClose} className="px-6 py-2.5 rounded-xl font-bold text-gray-600 hover:bg-gray-200 transition-colors">إلغاء</button>
             <button 
-              onClick={() => { onSave(formData); onClose(); }} 
+              onClick={handleSaveClick} 
               disabled={!formData.patientId || !formData.date || !formData.time || !formData.type.trim()}
               className={`px-8 py-2.5 rounded-xl font-black text-white bg-[#00838F] hover:bg-[#006064] transition-colors shadow-md ${(!formData.patientId || !formData.date || !formData.time || !formData.type.trim()) ? 'opacity-50 cursor-not-allowed' : ''}`}
             >

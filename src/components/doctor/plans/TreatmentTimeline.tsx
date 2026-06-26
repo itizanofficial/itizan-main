@@ -280,7 +280,7 @@ export const TreatmentTimeline: React.FC<TreatmentTimelineProps> = ({ patientId 
                         <span className="flex items-center gap-1"><RefreshCw size={14}/> موعد التقييم: {new Date(plan.end_date).toLocaleDateString('ar-EG')}</span>
                       </div>
                     </div>
-                    <button onClick={() => handleDeletePlan(plan.id)} className="text-gray-300 hover:text-red-500 transition-colors bg-gray-50 dark:bg-gray-900 p-2 rounded-xl border border-gray-100 dark:border-gray-800" title="إيقاف البرنامج">
+                    <button onClick={() => handleDeletePlan(plan.id)} className="text-red-400 hover:text-red-500 transition-colors bg-gray-50 dark:bg-gray-900 p-2 rounded-xl border border-gray-100 dark:border-gray-800" title="إيقاف البرنامج">
                       <Trash2 size={18} />
                     </button>
                   </div>

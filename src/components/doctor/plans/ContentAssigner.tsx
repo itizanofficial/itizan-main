@@ -151,7 +151,7 @@ export const ContentAssigner: React.FC<ContentAssignerProps> = ({ patientId }) =
                   <a href={item.content_url} target="_blank" rel="noreferrer" className="text-[#00838F] hover:bg-cyan-50 p-1.5 rounded-lg transition-colors" title="استعراض المادة">
                     <PlayCircle size={20} />
                   </a>
-                  <button onClick={() => handleDeleteContent(item.id)} className="text-gray-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors" title="إلغاء التخصيص">
+                  <button onClick={() => handleDeleteContent(item.id)} className="text-red-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors" title="إلغاء التخصيص">
                     <Trash2 size={18} />
                   </button>
                 </div>
