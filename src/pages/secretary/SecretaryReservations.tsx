@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CalendarDays, Clock, CheckCircle2, Plus, Search, Loader2, Wallet, ClipboardCheck, AlertTriangle } from 'lucide-react';
+import { CalendarDays, Clock, CheckCircle2, Plus, Search, Loader2, Wallet, ClipboardCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { secretaryService } from '../../services/secretaryService';
 import { supabase } from '../../services/supabase';
@@ -17,7 +17,6 @@ export const SecretaryReservations = () => {
   const [adminId, setAdminId] = useState('');
   const [editingData, setEditingData] = useState<any>(null);
 
-  // 🌟 حالات تقفيل اليومية
   const [isCloseDayModalOpen, setIsCloseDayModalOpen] = useState(false);
   const [isClosingDay, setIsClosingDay] = useState(false);
 
@@ -27,27 +26,42 @@ export const SecretaryReservations = () => {
       if (!currentAdminId) return;
       setAdminId(currentAdminId);
 
-      const statsData = await secretaryService.getReservationStats(currentAdminId);
-      setStats(statsData);
-
       const resData = await secretaryService.getAllReservations(currentAdminId);
       
-      const formatted = (resData || []).map((apt: any) => ({
-        id: apt.id,
-        patientId: apt.patient_id,
-        doctorId: apt.doctor_id,
-        patientName: apt.patient?.name || apt.patient?.full_name || 'مريض غير مسجل',
-        phone: apt.patient?.phone || '---',
-        doctorName: apt.doctor?.name || apt.doctor?.full_name || '---',
-        date: apt.session_date ? new Date(apt.session_date).toLocaleDateString('en-CA') : '',
-        time: apt.session_date ? new Date(apt.session_date).toLocaleTimeString('en-US', { hour12: false }).substring(0, 5) : '',
-        mode: apt.mode || 'حضور بالعيادة',
-        session_type: apt.session_type || 'كشف',
-        fees: apt.fees || 0,
-        payment_status: apt.payment_status || 'unpaid',
-        status: apt.status,
-      }));
+      let total = 0; let confirmed = 0; let pending = 0; let shiftRevenue = 0;
+      
+      const formatted = (resData || []).map((apt: any) => {
+        total++;
+        if (apt.payment_status === 'paid' || apt.status === 'confirmed' || apt.status === 'مؤكدة') {
+          confirmed++;
+        } else {
+          pending++;
+        }
 
+        // 🌟 حساب الخزينة الحالية (للوردية اللي لسه متقفلتش بس)
+        if (apt.payment_status === 'paid' && !apt.shift_closed) {
+          shiftRevenue += Number(apt.fees || 0);
+        }
+
+        return {
+          id: apt.id,
+          patientId: apt.patient_id,
+          doctorId: apt.doctor_id,
+          patientName: apt.patient?.name || apt.patient?.full_name || 'مريض غير مسجل',
+          phone: apt.patient?.phone || '---',
+          doctorName: apt.doctor?.name || apt.doctor?.full_name || '---',
+          date: apt.session_date ? new Date(apt.session_date).toLocaleDateString('en-CA') : '',
+          time: apt.session_date ? new Date(apt.session_date).toLocaleTimeString('en-US', { hour12: false }).substring(0, 5) : '',
+          mode: apt.mode || 'حضور بالعيادة',
+          session_type: apt.session_type || 'كشف',
+          fees: apt.fees || 0,
+          payment_status: apt.payment_status || 'unpaid',
+          status: apt.status,
+          shift_closed: apt.shift_closed
+        };
+      });
+
+      setStats({ total, confirmed, pending, todayRevenue: shiftRevenue });
       setAppointments(formatted);
     } catch (error) {
       console.error("Error loading data:", error);
@@ -58,14 +72,7 @@ export const SecretaryReservations = () => {
 
   useEffect(() => { 
     loadData(); 
-
-    const channel = supabase
-      .channel('sessions_realtime_change')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => {
-        loadData(); 
-      })
-      .subscribe();
-
+    const channel = supabase.channel('sessions_realtime_change').on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => { loadData(); }).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
 
@@ -75,28 +82,18 @@ export const SecretaryReservations = () => {
       await secretaryService.confirmPaymentAndSession(sessionId);
       toast.success('تم تأكيد الدفع بنجاح وزاد إجمالي التحصيل! 💰✅');
       await loadData(); 
-    } catch (error) {
-      toast.error("حدث خطأ أثناء التأكيد");
-    } finally {
-      setActionLoading(null);
-    }
+    } catch (error) { toast.error("حدث خطأ أثناء التأكيد"); } 
+    finally { setActionLoading(null); }
   };
 
   const handleSaveModal = async (data: any) => {
     try {
-      if (!adminId) {
-        toast.error('لم يتم التعرف على المركز الطبي، حاول تحديث الصفحة');
-        return;
-      }
-      
+      if (!adminId) return;
       await secretaryService.saveSession(data, adminId);
-      
       toast.success(data.id ? 'تم تعديل الجلسة بنجاح 🔄' : 'تم الحجز بنجاح، في انتظار الدفع! 📅');
       setIsModalOpen(false);
       loadData();
-    } catch (err: any) {
-      toast.error(err.message || 'حدث خطأ أثناء الحفظ');
-    }
+    } catch (err: any) { toast.error(err.message || 'حدث خطأ أثناء الحفظ'); }
   };
 
   const handleDelete = async (id: string) => {
@@ -104,30 +101,49 @@ export const SecretaryReservations = () => {
       await supabase.from('sessions').delete().eq('id', id);
       toast.success('تم الإلغاء بنجاح 🗑️');
       loadData();
-    } catch (err: any) {
-      toast.error('حدث خطأ أثناء الإلغاء');
-    }
+    } catch (err: any) { toast.error('حدث خطأ أثناء الإلغاء'); }
   };
 
-  // 🌟 دالة تقفيل اليومية
+  // 🌟 دالة تقفيل اليومية (بتخزن التقرير وتصفر الخزينة)
   const handleCloseDailyReport = async () => {
+    if (stats.todayRevenue === 0) {
+      toast.error('الخزينة فارغة بالفعل! لا يوجد إيرادات لتقفيلها.');
+      setIsCloseDayModalOpen(false);
+      return;
+    }
+    
     setIsClosingDay(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
       const todayStr = new Date().toLocaleDateString('en-CA');
-      // بنبعت الفلوس وعدد الجلسات المؤكدة عشان تتحفظ
-      await secretaryService.closeDailyReport(adminId, todayStr, stats.todayRevenue, stats.confirmed);
-      toast.success('تم تقفيل اليومية وإرسال التقرير للمدير بنجاح! 📜✅');
+      
+      // 1. تسجيل التقرير للمدير
+      await supabase.from('daily_reports').insert([{
+        admin_id: adminId,
+        secretary_id: user?.id,
+        report_date: todayStr,
+        total_revenue: stats.todayRevenue,
+        confirmed_sessions: stats.confirmed
+      }]);
+
+      // 2. تصفير الوردية (تحديث الجلسات المدفوعة لـ shift_closed = true)
+      await supabase.from('sessions')
+        .update({ shift_closed: true })
+        .eq('admin_id', adminId)
+        .eq('payment_status', 'paid')
+        .eq('shift_closed', false);
+
+      toast.success('تم تقفيل الخزينة وتصفير الإيرادات لبدء وردية جديدة! 📜✅');
       setIsCloseDayModalOpen(false);
+      loadData(); // هيقرا من جديد ويلاقي الفلوس 0
     } catch (err: any) {
-      toast.error(err.message || 'حدث خطأ أثناء تقفيل اليومية');
+      toast.error('حدث خطأ أثناء تقفيل اليومية');
     } finally {
       setIsClosingDay(false);
     }
   };
 
-  const filteredAppointments = appointments.filter(apt => 
-    apt.patientName.includes(searchQuery) || apt.phone.includes(searchQuery) || apt.doctorName.includes(searchQuery)
-  );
+  const filteredAppointments = appointments.filter(apt => apt.patientName.includes(searchQuery) || apt.phone.includes(searchQuery) || apt.doctorName.includes(searchQuery));
 
   return (
     <div className="flex-1 bg-gray-50/50 dark:bg-gray-900 p-8 overflow-y-auto animate-fade-in font-sans" dir="rtl">
@@ -138,10 +154,9 @@ export const SecretaryReservations = () => {
           <p className="text-sm font-bold text-gray-500">متابعة عمليات الدفع الفوري وتأكيد الجلسات</p>
         </div>
         
-        {/* 🌟 زراير الهيدر */}
         <div className="flex items-center gap-3">
           <button onClick={() => setIsCloseDayModalOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold flex gap-2 transition-colors shadow-sm">
-            <ClipboardCheck size={20} /> تقفيل اليومية
+            <ClipboardCheck size={20} /> تقفيل الخزينة
           </button>
           
           <button onClick={() => { setEditingData(null); setIsModalOpen(true); }} className="bg-[#00838F] hover:bg-[#006064] text-white px-5 py-3 rounded-xl font-bold flex gap-2 transition-colors shadow-sm">
@@ -156,8 +171,8 @@ export const SecretaryReservations = () => {
           <div className="w-12 h-12 bg-cyan-50 text-[#00838F] rounded-full flex items-center justify-center"><CalendarDays /></div>
         </div>
         
-        <div className="bg-white rounded-3xl p-6 border border-b-4 border-b-emerald-500 shadow-sm flex justify-between">
-          <div><h3 className="text-3xl font-black text-emerald-600">{stats.todayRevenue} ج.م</h3><p className="text-sm font-bold text-gray-500">إجمالي خزينة المركز</p></div>
+        <div className="bg-white rounded-3xl p-6 border border-b-4 border-b-emerald-500 shadow-sm flex justify-between transform transition-all hover:scale-105">
+          <div><h3 className="text-3xl font-black text-emerald-600">{stats.todayRevenue} ج.م</h3><p className="text-sm font-bold text-gray-500">خزينة الوردية الحالية</p></div>
           <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center"><Wallet /></div>
         </div>
 
@@ -181,14 +196,7 @@ export const SecretaryReservations = () => {
         </div>
 
         {loading ? <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-[#00838F]" size={40}/></div> : 
-          <SecretaryAppointmentTable 
-            appointments={filteredAppointments} 
-            onConfirmPayment={handleConfirmPayment}
-            actionLoading={actionLoading}
-            onEdit={(data: any) => { setEditingData(data); setIsModalOpen(true); }}
-            onDelete={handleDelete}
-            onRemind={() => toast.success('تم إرسال التذكير للمريض بنجاح 🔔')}
-          />
+          <SecretaryAppointmentTable appointments={filteredAppointments} onConfirmPayment={handleConfirmPayment} actionLoading={actionLoading} onEdit={(data: any) => { setEditingData(data); setIsModalOpen(true); }} onDelete={handleDelete} onRemind={() => toast.success('تم إرسال التذكير للمريض بنجاح 🔔')} />
         }
       </div>
 
@@ -205,24 +213,21 @@ export const SecretaryReservations = () => {
               <div>
                 <h3 className="text-xl font-black text-gray-900">تقفيل الخزينة وإرسال التقرير</h3>
                 <p className="text-sm text-gray-500 mt-2 font-bold leading-relaxed">
-                  سيتم تسجيل تقرير اليوم كالتالي:<br/>
+                  سيتم تصفير خزينة الوردية الحالية وإرسال الآتي للمدير:<br/>
                   <span className="text-emerald-600 text-lg">إجمالي التحصيل: {stats.todayRevenue} ج.م</span><br/>
                   <span className="text-[#00838F]">الجلسات المؤكدة: {stats.confirmed} جلسة</span>
                 </p>
               </div>
             </div>
             <div className="flex gap-3 mt-8">
-              <button onClick={() => setIsCloseDayModalOpen(false)} disabled={isClosingDay} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-bold transition-colors">
-                تراجع
-              </button>
+              <button onClick={() => setIsCloseDayModalOpen(false)} disabled={isClosingDay} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-bold transition-colors">تراجع</button>
               <button onClick={handleCloseDailyReport} disabled={isClosingDay} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-500/30 transition-colors flex items-center justify-center gap-2">
-                {isClosingDay ? <Loader2 size={18} className="animate-spin" /> : 'اعتماد التقفيل'}
+                {isClosingDay ? <Loader2 size={18} className="animate-spin" /> : 'اعتماد وتصفير الخزينة'}
               </button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 };
