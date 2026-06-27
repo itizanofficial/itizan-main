@@ -1,7 +1,7 @@
 import React from 'react';
-import { FileText, Trash2, CheckCircle, Clock, MapPin, Video, PhoneCall, CalendarX } from 'lucide-react';
+import { FileText, Trash2, CheckCircle, Clock, MapPin, Video, PhoneCall, CalendarX, Edit } from 'lucide-react';
 
-export const SecretarySessionTable = ({ sessions, loading, onOpenDetails, onForceDelete }: any) => {
+export const SecretarySessionTable = ({ sessions, loading, onOpenDetails, onEdit, onForceDelete }: any) => {
   const getModeIcon = (mode: string) => {
     if (!mode) return <MapPin size={14} className="text-emerald-500" />;
     if (mode.includes('فيديو') || mode.includes('أونلاين')) return <Video size={14} className="text-purple-500" />;
@@ -39,28 +39,26 @@ export const SecretarySessionTable = ({ sessions, loading, onOpenDetails, onForc
               <tr key={session.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                 
                 <td className="py-4 px-6">
-                  <div className="font-black text-gray-900">{session.patient?.name || '---'}</div>
-                  <div className="text-xs font-bold text-gray-500">{session.patient?.phone || '---'}</div>
+                  <div className="font-black text-gray-900">{session.patientName}</div>
+                  <div className="text-xs font-bold text-gray-500">{session.phone}</div>
                 </td>
 
                 <td className="py-4 px-6">
-                  <div className="font-black text-[#00838F]">د. {session.doctor?.name || '---'}</div>
+                  <div className="font-black text-[#00838F]">د. {session.doctorName}</div>
                 </td>
                 
                 <td className="py-4 px-6">
-                  <div className="font-bold text-gray-800 text-sm">{new Date(session.session_date).toLocaleDateString('ar-EG')}</div>
-                  <div className="text-xs font-black text-[#00838F] mt-1" dir="ltr">
-                    {new Date(session.session_date).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
-                  </div>
+                  <div className="text-sm font-bold text-gray-800">{new Date(session.date).toLocaleDateString('ar-EG')}</div>
+                  <div className="text-xs font-black text-[#00838F] mt-1" dir="ltr">{session.time}</div>
                 </td>
                 
                 <td className="py-4 px-6 text-center">
                   <div className="flex flex-col items-center gap-1.5">
                     <span className="inline-block px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold">
-                      {session.session_type || 'كشف'}
+                      {session.session_type}
                     </span>
                     <span className="flex items-center gap-1 text-[11px] font-bold text-gray-500">
-                      {getModeIcon(session.mode)} {session.mode || 'حضور بالعيادة'}
+                      {getModeIcon(session.mode)} {session.mode}
                     </span>
                   </div>
                 </td>
@@ -77,6 +75,10 @@ export const SecretarySessionTable = ({ sessions, loading, onOpenDetails, onForc
                   <div className="flex items-center justify-center gap-2">
                     <button onClick={() => onOpenDetails(session)} className="text-cyan-600 hover:bg-cyan-50 p-2 rounded-xl transition-colors" title="عرض التفاصيل والتقارير">
                       <FileText size={18} />
+                    </button>
+                    {/* 🌟 زرار التعديل */}
+                    <button onClick={() => onEdit(session)} className="text-amber-600 hover:bg-amber-50 p-2 rounded-xl transition-colors" title="تعديل الموعد">
+                      <Edit size={18} />
                     </button>
                     <button onClick={() => onForceDelete(session.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-xl transition-colors" title="إلغاء ومسح الجلسة">
                       <Trash2 size={18} />

@@ -1,11 +1,8 @@
 import { supabase } from './supabase';
 
 export const doctorService = {
-  
-  // 1. لوجيك الداشبورد الرئيسية (الإحصائيات)
   getDashboardMetrics: async (doctorId: string) => {
     const today = new Date().toISOString().split('T')[0];
-
     const { data: sessions, error } = await supabase
       .from('sessions')
       .select('patient_id, session_date, status') 
@@ -21,18 +18,10 @@ export const doctorService = {
     return { activePatients, todaySessions, upcomingAppointments, completedSessions };
   },
 
-  // 2. لوجيك صفحة الحجوزات (المواعيد)
   getAppointments: async (doctorId: string) => {
     const { data, error } = await supabase
       .from('sessions')
-      .select(`
-        id,
-        session_date,
-        status,
-        session_type,
-        diagnosis,
-        patient:patients (id, name, dob, phone) 
-      `) 
+      .select(`id, session_date, status, session_type, diagnosis, mode, payment_status, patient:patients (id, name, dob, phone)`) 
       .eq('doctor_id', doctorId)
       .order('session_date', { ascending: true }); 
 
@@ -40,104 +29,46 @@ export const doctorService = {
     return data;
   },
 
-  // 3. لوجيك إدارة الجلسة (تغيير الحالة)
   updateSessionStatus: async (sessionId: string, newStatus: 'scheduled' | 'completed' | 'cancelled' | 'confirmed') => {
-    const { data, error } = await supabase
-      .from('sessions')
-      .update({ status: newStatus })
-      .eq('id', sessionId)
-      .select()
-      .single();
-
+    const { data, error } = await supabase.from('sessions').update({ status: newStatus }).eq('id', sessionId).select().single();
     if (error) throw error;
     return data;
   },
 
   sendPatientNotification: async (patientId: string, title: string, body: string, type: 'session' | 'system' = 'session') => {
-    const { error } = await supabase.from('notifications').insert([{
-      patient_id: patientId,
-      title: title,
-      body: body,
-      type: type
-    }]);
+    const { error } = await supabase.from('notifications').insert([{ patient_id: patientId, title, body, type }]);
     if (error) throw error;
   },
 
-  // 5. لوجيك كتابة الروشتة أو الملاحظات
-  saveSessionNotes: async (sessionId: string, notes: string, recommendations: string) => {
-    const { data, error } = await supabase
-      .from('sessions')
-      .update({ 
-        doctor_notes: notes, 
-        status: 'completed'
-      })
-      .eq('id', sessionId);
-
-    if (error) throw error;
-    return data;
-  },
-
-  // 6. لوجيك إضافة مهمة يومية للمريض
   addPatientTask: async (patientId: string, doctorId: string, title: string, description: string) => {
-    const { data, error } = await supabase
-      .from('daily_tasks')
-      .insert([{
-        doctor_id: doctorId, patient_id: patientId, task_title: title, tasks_list: [description]
-      }]);
-
+    const { data, error } = await supabase.from('daily_tasks').insert([{ doctor_id: doctorId, patient_id: patientId, task_title: title, tasks_list: [description] }]);
     if (error) throw error;
     return data;
   },
 
-  // 7. جلب مرضى الدكتور (تم إضافة الترتيب عشان أحدث مريض يظهر الأول)
   getDoctorPatients: async (doctorId: string) => {
-    const { data, error } = await supabase
-      .from('patients')
-      .select('*')
-      .eq('doctor_id', doctorId)
-      .order('created_at', { ascending: false }); // 🌟 ترتيب بالأحدث
-
+    const { data, error } = await supabase.from('patients').select('*').eq('doctor_id', doctorId).order('created_at', { ascending: false });
     if (error) throw error;
     return data;
   },
 
-  // 🌟 8. (إضافة جديدة) تحديث التشخيص الطبي للمريض
   updatePatientDiagnosis: async (patientId: string, diagnosis: string) => {
-    const { data, error } = await supabase
-      .from('patients')
-      .update({ diagnosis: diagnosis })
-      .eq('id', patientId);
-
+    const { data, error } = await supabase.from('patients').update({ diagnosis: diagnosis }).eq('id', patientId);
     if (error) throw error;
     return data;
   },
 
-  // 🌟 9. (إضافة جديدة) جلب أو توليد كود الدكتور لربط المرضى
   getCurrentDoctorCode: async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    // نجيب الكود لو موجود
-    const { data: doctor, error } = await supabase
-      .from('doctors')
-      .select('doctor_code')
-      .eq('id', user.id)
-      .maybeSingle(); // maybeSingle بدل single عشان لو مفيش ميضربش إيرور
-
+    const { data: doctor, error } = await supabase.from('doctors').select('doctor_code').eq('id', user.id).maybeSingle();
     if (error) throw error;
 
-    // لو ليه كود، نرجعه
-    if (doctor && doctor.doctor_code) {
-      return doctor.doctor_code;
-    }
+    if (doctor && doctor.doctor_code) return doctor.doctor_code;
 
-    // لو ملوش كود، نولد كود جديد من أول 8 حروف من الآي دي ونحفظه
     const newCode = user.id.slice(0, 8).toUpperCase();
-    
-    const { error: upsertError } = await supabase
-      .from('doctors')
-      .upsert({ id: user.id, doctor_code: newCode });
-
+    const { error: upsertError } = await supabase.from('doctors').upsert({ id: user.id, doctor_code: newCode });
     if (upsertError) throw upsertError;
 
     return newCode;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PhoneOff, FileText, Info, Clock, AlertTriangle, User, MapPin, Mic } from 'lucide-react';
+import { PhoneOff, FileText, Info, Clock, AlertTriangle, User, MapPin, Mic, Video } from 'lucide-react';
 
 export const ActiveSessionRoom = ({ session, onLeave, onSaveNotes }: any) => {
   const [liveNotes, setLiveNotes] = useState({ 
@@ -10,10 +10,11 @@ export const ActiveSessionRoom = ({ session, onLeave, onSaveNotes }: any) => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // 🌟 اللوجيك الذكي للتعرف على نوع الجلسة بدقة
-  const modeStr = session.mode || session.session_type || '';
-  const isAudio = modeStr.includes('صوت') || modeStr.includes('مكالمة');
-  const isVideo = modeStr.includes('فيديو') || modeStr.includes('مرئية') || modeStr.includes('Online');
+  // 🌟 اللوجيك الصارم للتعرف على نوع الجلسة (بنعتمد على mode فقط)
+  const modeStr = String(session.mode || '').trim();
+  
+  const isAudio = modeStr === 'صوتية' || modeStr.includes('هاتفية');
+  const isVideo = modeStr === 'فيديو' || modeStr.includes('أونلاين');
   const isOnlineType = isVideo || isAudio;
 
   useEffect(() => {
@@ -29,7 +30,7 @@ export const ActiveSessionRoom = ({ session, onLeave, onSaveNotes }: any) => {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const roomName = `Etizan_Clinic_${session.id.replace(/-/g, '')}`;
+  const roomName = `Etizan_Clinic_${String(session.id).replace(/-/g, '')}`;
 
   const executeEndSession = async () => {
     setIsSaving(true);
@@ -39,16 +40,17 @@ export const ActiveSessionRoom = ({ session, onLeave, onSaveNotes }: any) => {
     setShowConfirmDialog(false);
   };
 
-  // 🌟 تجهيز رابط Jitsi (لو صوتية بنقفل الكاميرا إجبارياً من السيرفر)
+  // تجهيز رابط Jitsi بناءً على النوع
   let jitsiUrl = `https://meet.jit.si/${roomName}#config.prejoinPageEnabled=false&config.requireDisplayName=false&userInfo.displayName="الطبيب المعالج"`;
-  if (isAudio) {
+  
+  // إغلاق الكاميرا إجبارياً لو الجلسة صوتية
+  if (isAudio && !isVideo) {
     jitsiUrl += `&config.startAudioOnly=true&config.startWithVideoMuted=true`;
   }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-gray-900 rounded-[2rem] p-6 text-white min-h-[650px] animate-fade-in border border-gray-800 shadow-2xl font-sans relative">
       
-      {/* مودال تأكيد الحفظ والإنهاء */}
       {showConfirmDialog && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" dir="rtl">
           <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-fade-in">
@@ -69,15 +71,14 @@ export const ActiveSessionRoom = ({ session, onLeave, onSaveNotes }: any) => {
         </div>
       )}
 
-      {/* الجزء الخاص بمكالمة الفيديو/الصوت أو مساحة العيادة الحضورية */}
       <div className="lg:col-span-7 flex flex-col justify-between h-full bg-black rounded-[1.5rem] overflow-hidden border border-gray-700 relative min-h-[400px]">
         
         {isOnlineType ? (
           <>
-            {/* التايمر للجلسات الأونلاين */}
-            <div className="absolute top-4 left-4 z-10 bg-black/60 backdrop-blur-md px-4 py-2 rounded-xl border border-gray-700 flex items-center gap-2">
+            {/* التايمر ونوع الجلسة الأونلاين */}
+            <div className="absolute top-4 left-4 z-10 bg-black/60 backdrop-blur-md px-4 py-2 rounded-xl border border-gray-700 flex items-center gap-3">
               <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-              {isAudio ? <Mic size={16} className="text-gray-300" /> : <Clock size={16} className="text-gray-300" />}
+              {isAudio ? <Mic size={16} className="text-blue-400" /> : <Video size={16} className="text-purple-400" />}
               <span className="font-mono font-bold text-white tracking-widest">{formatTime(secondsElapsed)}</span>
             </div>
 
@@ -88,15 +89,14 @@ export const ActiveSessionRoom = ({ session, onLeave, onSaveNotes }: any) => {
             />
           </>
         ) : (
-          /* 🌟 إذا كانت الجلسة حضورية بالعيادة: نعرض واجهة شيك والتايمر شغال لايف قدام الدكتور */
+          /* 🌟 واجهة الحضور بالعيادة */
           <div className="flex-1 flex flex-col items-center justify-center p-8 bg-gradient-to-br from-gray-950 to-gray-900 text-center gap-4">
             <div className="w-20 h-20 rounded-full bg-[#00838F]/10 border border-[#00838F]/30 flex items-center justify-center text-[#00838F] mb-2 animate-pulse">
               <User size={40} />
             </div>
             <h3 className="text-xl font-black text-white">جلسة حضورية قائمة بالعيادة</h3>
-            <p className="text-gray-400 text-sm max-w-xs font-bold">المريض: {session.patient?.name || 'غير مسجل'}</p>
+            <p className="text-gray-400 text-sm max-w-xs font-bold">المريض: {session.patient?.name || session.patientName || 'غير مسجل'}</p>
             
-            {/* 🌟 التايمر اللايف لجلسات الحضور */}
             <div className="flex items-center gap-2 text-emerald-400 bg-emerald-500/10 px-4 py-2.5 rounded-xl border border-emerald-500/20 font-bold mt-2">
               <Clock size={16} className="animate-pulse" /> 
               <span className="font-mono tracking-widest">وقت الجلسة المستغرق: {formatTime(secondsElapsed)}</span>
@@ -114,7 +114,7 @@ export const ActiveSessionRoom = ({ session, onLeave, onSaveNotes }: any) => {
         </div>
       </div>
       
-      {/* لوحة التقارير والملاحظات (5 أعمدة) */}
+      {/* لوحة التقارير والملاحظات */}
       <div className="lg:col-span-5 bg-gray-800/80 border border-gray-700 rounded-[1.5rem] p-6 flex flex-col h-full backdrop-blur-sm">
         <div className="flex items-center justify-between border-b border-gray-700/80 pb-4 mb-5">
           <div className="flex items-center gap-2">

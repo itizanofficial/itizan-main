@@ -12,9 +12,7 @@ const calculateAge = (dobString: string) => {
   const today = new Date();
   let age = today.getFullYear() - dob.getFullYear();
   const m = today.getMonth() - dob.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-    age--;
-  }
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) { age--; }
   return age;
 };
 
@@ -37,8 +35,7 @@ export const Appointments: React.FC = () => {
       const formatted = (data || []).map((apt: any) => {
         const dateObj = apt.session_date ? new Date(apt.session_date) : new Date();
         const yyyyMmDd = dateObj.toLocaleDateString('en-CA'); 
-        
-        const timeStr = dateObj.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });
+        const timeStr = dateObj.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: false });
 
         return {
           id: apt.id,
@@ -49,7 +46,7 @@ export const Appointments: React.FC = () => {
           date: yyyyMmDd,
           time: timeStr,
           session_type: apt.session_type || 'كشف', 
-          mode: apt.mode || '', 
+          mode: apt.mode || 'حضور بالعيادة', 
           diagnosis: apt.diagnosis || '',
           status: apt.status,
           rawStatus: apt.status,
@@ -67,7 +64,6 @@ export const Appointments: React.FC = () => {
 
   useEffect(() => {
     fetchAppointments();
-
     const subscription = supabase
       .channel('appointments_channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => {
@@ -82,13 +78,10 @@ export const Appointments: React.FC = () => {
     const matchSearch = (apt.patientName && apt.patientName.toLowerCase().includes(searchTerm.toLowerCase())) || 
                         (apt.phone && apt.phone.includes(searchTerm));
     
-    // 🌟 البوابة الصارمة: تحديد حالة الجلسة بناءً على الدفع والتأكيد معاً
     const isPaidAndConfirmed = (apt.rawStatus === 'مؤكدة' || apt.rawStatus === 'confirmed' || apt.rawStatus === 'مكتملة') && apt.payment_status === 'paid';
     
-    // لو الجلسة بقت (مدفوعة ومؤكدة)، الديفولت إننا نخفيها من هنا عشان تروح لصفحة الجلسات مباشرة
-    // إلا لو الدكتور اختار فلتر "مؤكد ومدفوع" عشان يراجعهم
     if (isPaidAndConfirmed && statusFilter !== 'مؤكد ومدفوع') {
-      return false; // 🚫 طرد من شاشة الحجوزات، دي بقت جلسة خلاص
+      return false; // طرد للشاشة التشغيلية
     }
 
     const isPending = !isPaidAndConfirmed && apt.rawStatus !== 'ملغاة' && apt.rawStatus !== 'cancelled';
@@ -100,46 +93,45 @@ export const Appointments: React.FC = () => {
     return matchSearch && matchStatus;
   });
 
+  // 🌟 دالة الحفظ الصارمة لحماية الداتا بيز 🌟
   const handleSave = async (data: any) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 🌟 التعديل الخطير: هنجيب بيانات الدكتور عشان الـ admin_id والأسعار
       const { data: doctorData } = await supabase.from('doctors').select('admin_id, consultation_price, followup_price').eq('id', user.id).single();
-
       const combinedDateTime = new Date(`${data.date}T${data.time}:00`).toISOString();
 
-      // 🌟 حساب التسعيرة عشان السكرتير يشوف الرقم صح ويدفعه
-      const fees = data.session_type === 'كشف' 
-        ? Number(doctorData?.consultation_price || 0) 
-        : Number(doctorData?.followup_price || 0);
-
-      const sessionPayload = {
+      const sessionPayload: any = {
         doctor_id: user.id,
-        admin_id: doctorData?.admin_id, // 🌟 أهم سطر عشان السكرتير يشوف الحجز!
+        admin_id: doctorData?.admin_id, 
         patient_id: data.patientId,
         session_date: combinedDateTime,
         session_type: data.session_type || 'كشف',
         mode: data.mode || 'حضور بالعيادة',
-        diagnosis: data.diagnosis || '', 
-        fees: fees, // 🌟 الفلوس
-        status: data.id ? data.rawStatus : 'قيد الانتظار',
-        payment_status: data.id ? data.payment_status : 'unpaid'
+        diagnosis: data.diagnosis || ''
       };
 
       if (data.id) {
+        // حماية الفلوس في حالة التعديل
+        const { data: oldSession } = await supabase.from('sessions').select('*').eq('id', data.id).single();
+        if (oldSession && oldSession.payment_status !== 'paid') {
+            sessionPayload.fees = data.fees;
+        }
+
         await supabase.from('sessions').update(sessionPayload).eq('id', data.id);
         await doctorService.sendPatientNotification(data.patientId, 'تعديل موعد الحجز 🔄', `تم تعديل موعد جلستك ليكون يوم ${data.date} الساعة ${data.time}.`);
         toast.success('تم تعديل الحجز بنجاح.');
       } else {
+        sessionPayload.fees = data.fees;
+        sessionPayload.status = 'قيد الانتظار';
+        sessionPayload.payment_status = 'unpaid';
+
         await supabase.from('sessions').insert([sessionPayload]);
         await doctorService.sendPatientNotification(data.patientId, 'تم حجز موعد جديد 📅', `تم حجز موعد مبدئي لك (${data.mode}) يوم ${data.date} الساعة ${data.time}. في انتظار تأكيد الدفع.`);
         toast.success('تم حجز الموعد المبدئي بنجاح.');
       }
       setIsModalOpen(false);
-      
-      // 🌟 تحديث فوري للحالة عشان الجدول ميفضلش معلق
       fetchAppointments(); 
 
     } catch (error: any) {
@@ -159,7 +151,7 @@ export const Appointments: React.FC = () => {
               try {
                 await supabase.from('sessions').delete().eq('id', id);
                 toast.success('تم إلغاء الحجز بنجاح.');
-                fetchAppointments(); // 🌟 تحديث فوري
+                fetchAppointments(); 
               } catch (error) {
                 toast.error('تعذر إلغاء الحجز حالياً.');
               }
@@ -195,7 +187,7 @@ export const Appointments: React.FC = () => {
                 await doctorService.updateSessionStatus(apt.id, 'confirmed');
                 await doctorService.sendPatientNotification(apt.patientId, 'تأكيد مبدئي ✅', `تم الموافقة على الموعد يوم ${apt.date} الساعة ${apt.time} مبدئياً. يرجى إتمام الدفع لتأكيد الحجز النهائي.`, 'system');
                 toast.success('تم التأكيد المبدئي بنجاح!');
-                fetchAppointments(); // 🌟 تحديث فوري للحالة
+                fetchAppointments(); 
               } catch (error: any) {
                 toast.error('حدث خطأ أثناء التأكيد.');
               }

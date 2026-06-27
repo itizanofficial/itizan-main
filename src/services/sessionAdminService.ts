@@ -5,8 +5,6 @@ export const sessionAdminService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("يجب تسجيل الدخول");
 
-    // 🌟 هنشيل فلتر الداتا بيز الصارم من هنا، لأننا بنفلتر في الفرونت إند
-    // عشان نسمح بظهور الجلسات "المكتملة" و "الفائتة" في التاريخ
     const { data, error } = await supabase
       .from('sessions')
       .select(`*, patient:patients (id, name, dob, phone)`)
@@ -34,51 +32,79 @@ export const sessionAdminService = {
     return data;
   },
 
-  // 🌟 خلينا الدالة تستقبل sessionData بس عشان متضربش مع شاشة الدكتور
-  createSession: async (sessionData: any) => { 
+  // 🌟 الدالة الموحدة والذكية للحفظ والتعديل (تستقبل sessionData بالكامل)
+  saveSession: async (sessionData: any) => { 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("يجب تسجيل الدخول");
 
-      // 🌟 هنجيب بيانات الدكتور من جوه الدالة أوتوماتيك
       const { data: doctorInfo } = await supabase.from('doctors').select('*').eq('id', user.id).single();
       if (!doctorInfo) throw new Error("بيانات الطبيب غير متوفرة");
 
       const sessionDate = new Date(`${sessionData.date}T${sessionData.time}:00`).toISOString();
 
-      // 🌟 حساب التسعيرة ديناميكياً
-      const fees = sessionData.type === 'كشف' 
+      // 🌟 تصحيح حساب التسعيرة بناءً على session_type الصحيح
+      const fees = sessionData.session_type === 'كشف' 
         ? Number(doctorInfo.consultation_price || 0) 
         : Number(doctorInfo.followup_price || 0);
 
-      const payload = {
+      // الباي لود الموحد للجدول
+      const payload: any = {
         doctor_id: user.id,
         patient_id: sessionData.patientId,
         session_date: sessionDate,
-        admin_id: doctorInfo.admin_id, // عشان السكرتير يشوفه
-        session_type: sessionData.type,
+        admin_id: doctorInfo.admin_id, 
+        session_type: sessionData.session_type || 'كشف',
         mode: sessionData.mode || 'حضور بالعيادة',
-        fees: fees,
-        status: 'قيد الانتظار', 
-        payment_status: 'unpaid', 
-        clinical_notes: {}
+        diagnosis: sessionData.type || sessionData.diagnosis || '' // ربط التشخيص المبدئي
       };
 
-      const { error } = await supabase.from('sessions').insert([payload]);
-      if (error) throw new Error(error.message);
+      if (sessionData.id) {
+        // 🔄 وضع التعديل (Update)
+        const { data: oldSession } = await supabase.from('sessions').select('*').eq('id', sessionData.id).single();
+        
+        // حماية الفلوس: تتحدث بس لو الجلسة لسه ملوش دفع مؤكد
+        if (oldSession && oldSession.payment_status !== 'paid') {
+          payload.fees = fees;
+        }
+        
+        // الحفاظ على الحالة وحالة الدفع الحالية أثناء التعديل الزمني
+        payload.status = sessionData.status || oldSession?.status || 'قيد الانتظار';
+        payload.payment_status = sessionData.payment_status || oldSession?.payment_status || 'unpaid';
 
-      const d = new Date(sessionDate);
-      const dateStr = d.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' });
-      const timeStr = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+        const { error } = await supabase.from('sessions').update(payload).eq('id', sessionData.id);
+        if (error) throw new Error(error.message);
 
-      // تنبيه للمريض
-      const { error: notifError } = await supabase.from('notifications').insert([{
-        patient_id: sessionData.patientId,
-        title: 'موعد جلسة جديد 📅',
-        body: `تم حجز موعد مبدئي بتاريخ ${dateStr} الساعة ${timeStr}. يرجى تأكيد الحجز ودفع الرسوم في العيادة.`,
-        type: 'session'
-      }]);
-      if (notifError) throw new Error(notifError.message);
+        // إشعار التعديل للمريض
+        await supabase.from('notifications').insert([{
+          patient_id: sessionData.patientId,
+          title: 'تعديل موعد الجلسة 🔄',
+          body: `تم تعديل موعد جلستك ليكون يوم ${sessionData.date} الساعة ${sessionData.time}.`,
+          type: 'session'
+        }]);
+
+      } else {
+        // 🆕 وضع حجز جديد (Insert)
+        payload.fees = fees;
+        payload.status = 'قيد الانتظار'; 
+        payload.payment_status = 'unpaid';
+        payload.clinical_notes = {};
+
+        const { error } = await supabase.from('sessions').insert([payload]);
+        if (error) throw new Error(error.message);
+
+        // تنبيه موعد جديد للمريض
+        const d = new Date(sessionDate);
+        const dateStr = d.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' });
+        const timeStr = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
+        await supabase.from('notifications').insert([{
+          patient_id: sessionData.patientId,
+          title: 'موعد جلسة جديد 📅',
+          body: `تم حجز موعد مبدئي بتاريخ ${dateStr} الساعة ${timeStr}. يرجى تأكيد الحجز ودفع الرسوم في العيادة.`,
+          type: 'session'
+        }]);
+      }
     } catch (err: any) { throw err; }
   },
 

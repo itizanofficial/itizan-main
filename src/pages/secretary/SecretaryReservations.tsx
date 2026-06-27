@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CalendarDays, Clock, CheckCircle2, Plus, Search, Loader2, Wallet } from 'lucide-react';
+import { CalendarDays, Clock, CheckCircle2, Plus, Search, Loader2, Wallet, ClipboardCheck, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { secretaryService } from '../../services/secretaryService';
 import { supabase } from '../../services/supabase';
@@ -16,6 +16,10 @@ export const SecretaryReservations = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [adminId, setAdminId] = useState('');
   const [editingData, setEditingData] = useState<any>(null);
+
+  // 🌟 حالات تقفيل اليومية
+  const [isCloseDayModalOpen, setIsCloseDayModalOpen] = useState(false);
+  const [isClosingDay, setIsClosingDay] = useState(false);
 
   const loadData = async () => {
     try {
@@ -37,6 +41,7 @@ export const SecretaryReservations = () => {
         doctorName: apt.doctor?.name || apt.doctor?.full_name || '---',
         date: apt.session_date ? new Date(apt.session_date).toLocaleDateString('en-CA') : '',
         time: apt.session_date ? new Date(apt.session_date).toLocaleTimeString('en-US', { hour12: false }).substring(0, 5) : '',
+        mode: apt.mode || 'حضور بالعيادة',
         session_type: apt.session_type || 'كشف',
         fees: apt.fees || 0,
         payment_status: apt.payment_status || 'unpaid',
@@ -51,14 +56,13 @@ export const SecretaryReservations = () => {
     }
   };
 
-  // 🌟 تشغيل الـ Realtime عشان أي حجز من الدكتور أو المريض يسمّع فوراً عند السكرتير
   useEffect(() => { 
     loadData(); 
 
     const channel = supabase
       .channel('sessions_realtime_change')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => {
-        loadData(); // يعمل تحديث فوراً للأرقام والجدول
+        loadData(); 
       })
       .subscribe();
 
@@ -70,7 +74,7 @@ export const SecretaryReservations = () => {
     try {
       await secretaryService.confirmPaymentAndSession(sessionId);
       toast.success('تم تأكيد الدفع بنجاح وزاد إجمالي التحصيل! 💰✅');
-      await loadData(); // 🌟 إعادة تحميل الداتا فوراً عشان الأرقام تزيد
+      await loadData(); 
     } catch (error) {
       toast.error("حدث خطأ أثناء التأكيد");
     } finally {
@@ -80,35 +84,45 @@ export const SecretaryReservations = () => {
 
   const handleSaveModal = async (data: any) => {
     try {
-      const combinedDateTime = new Date(`${data.date}T${data.time}:00`).toISOString();
-      const payload = {
-        patient_id: data.patientId,
-        doctor_id: data.doctorId,
-        admin_id: adminId,
-        session_date: combinedDateTime,
-        session_type: data.session_type,
-        fees: data.fees,
-        status: data.id ? data.status : 'قيد الانتظار',
-        payment_status: data.id ? data.payment_status : 'unpaid'
-      };
-
-      if (data.id) {
-        await supabase.from('sessions').update(payload).eq('id', data.id);
-        toast.success('تم التعديل بنجاح');
-      } else {
-        await supabase.from('sessions').insert([payload]);
-        toast.success('تم الحجز بنجاح وفي انتظار الدفع التوجيهي');
+      if (!adminId) {
+        toast.error('لم يتم التعرف على المركز الطبي، حاول تحديث الصفحة');
+        return;
       }
+      
+      await secretaryService.saveSession(data, adminId);
+      
+      toast.success(data.id ? 'تم تعديل الجلسة بنجاح 🔄' : 'تم الحجز بنجاح، في انتظار الدفع! 📅');
+      setIsModalOpen(false);
       loadData();
-    } catch (err) {
-      toast.error('حدث خطأ أثناء الحفظ');
+    } catch (err: any) {
+      toast.error(err.message || 'حدث خطأ أثناء الحفظ');
     }
   };
 
   const handleDelete = async (id: string) => {
-    await supabase.from('sessions').delete().eq('id', id);
-    toast.success('تم الإلغاء بنجاح');
-    loadData();
+    try {
+      await supabase.from('sessions').delete().eq('id', id);
+      toast.success('تم الإلغاء بنجاح 🗑️');
+      loadData();
+    } catch (err: any) {
+      toast.error('حدث خطأ أثناء الإلغاء');
+    }
+  };
+
+  // 🌟 دالة تقفيل اليومية
+  const handleCloseDailyReport = async () => {
+    setIsClosingDay(true);
+    try {
+      const todayStr = new Date().toLocaleDateString('en-CA');
+      // بنبعت الفلوس وعدد الجلسات المؤكدة عشان تتحفظ
+      await secretaryService.closeDailyReport(adminId, todayStr, stats.todayRevenue, stats.confirmed);
+      toast.success('تم تقفيل اليومية وإرسال التقرير للمدير بنجاح! 📜✅');
+      setIsCloseDayModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || 'حدث خطأ أثناء تقفيل اليومية');
+    } finally {
+      setIsClosingDay(false);
+    }
   };
 
   const filteredAppointments = appointments.filter(apt => 
@@ -123,9 +137,17 @@ export const SecretaryReservations = () => {
           <h1 className="text-3xl font-black text-gray-900 mb-2">إدارة الحجوزات والخزينة</h1>
           <p className="text-sm font-bold text-gray-500">متابعة عمليات الدفع الفوري وتأكيد الجلسات</p>
         </div>
-        <button onClick={() => { setEditingData(null); setIsModalOpen(true); }} className="bg-[#00838F] hover:bg-[#006064] text-white px-6 py-3 rounded-xl font-bold flex gap-2">
-          <Plus size={20} /> حجز جديد
-        </button>
+        
+        {/* 🌟 زراير الهيدر */}
+        <div className="flex items-center gap-3">
+          <button onClick={() => setIsCloseDayModalOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold flex gap-2 transition-colors shadow-sm">
+            <ClipboardCheck size={20} /> تقفيل اليومية
+          </button>
+          
+          <button onClick={() => { setEditingData(null); setIsModalOpen(true); }} className="bg-[#00838F] hover:bg-[#006064] text-white px-5 py-3 rounded-xl font-bold flex gap-2 transition-colors shadow-sm">
+            <Plus size={20} /> حجز جديد
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -134,7 +156,6 @@ export const SecretaryReservations = () => {
           <div className="w-12 h-12 bg-cyan-50 text-[#00838F] rounded-full flex items-center justify-center"><CalendarDays /></div>
         </div>
         
-        {/* 🌟 كارت التحصيل المالي الذكي لايف */}
         <div className="bg-white rounded-3xl p-6 border border-b-4 border-b-emerald-500 shadow-sm flex justify-between">
           <div><h3 className="text-3xl font-black text-emerald-600">{stats.todayRevenue} ج.م</h3><p className="text-sm font-bold text-gray-500">إجمالي خزينة المركز</p></div>
           <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center"><Wallet /></div>
@@ -144,6 +165,7 @@ export const SecretaryReservations = () => {
           <div><h3 className="text-3xl font-black text-orange-500">{stats.pending}</h3><p className="text-sm font-bold text-gray-500">بانتظار الدفع</p></div>
           <div className="w-12 h-12 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center"><Clock /></div>
         </div>
+        
         <div className="bg-white rounded-3xl p-6 border shadow-sm flex justify-between">
           <div><h3 className="text-3xl font-black text-green-500">{stats.confirmed}</h3><p className="text-sm font-bold text-gray-500">تم التأكيد والدفع</p></div>
           <div className="w-12 h-12 bg-green-50 text-green-500 rounded-full flex items-center justify-center"><CheckCircle2 /></div>
@@ -165,12 +187,42 @@ export const SecretaryReservations = () => {
             actionLoading={actionLoading}
             onEdit={(data: any) => { setEditingData(data); setIsModalOpen(true); }}
             onDelete={handleDelete}
-            onRemind={() => toast.success('تم إرسال التذكير')}
+            onRemind={() => toast.success('تم إرسال التذكير للمريض بنجاح 🔔')}
           />
         }
       </div>
 
       <SecretaryAppointmentModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} adminId={adminId} onSave={handleSaveModal} editingData={editingData} />
+
+      {/* 🌟 مودال تأكيد تقفيل اليومية */}
+      {isCloseDayModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in px-4">
+          <div className="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-6 border border-gray-100">
+            <div className="flex flex-col items-center text-center gap-4">
+              <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
+                <ClipboardCheck size={32} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-gray-900">تقفيل الخزينة وإرسال التقرير</h3>
+                <p className="text-sm text-gray-500 mt-2 font-bold leading-relaxed">
+                  سيتم تسجيل تقرير اليوم كالتالي:<br/>
+                  <span className="text-emerald-600 text-lg">إجمالي التحصيل: {stats.todayRevenue} ج.م</span><br/>
+                  <span className="text-[#00838F]">الجلسات المؤكدة: {stats.confirmed} جلسة</span>
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button onClick={() => setIsCloseDayModalOpen(false)} disabled={isClosingDay} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-bold transition-colors">
+                تراجع
+              </button>
+              <button onClick={handleCloseDailyReport} disabled={isClosingDay} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-500/30 transition-colors flex items-center justify-center gap-2">
+                {isClosingDay ? <Loader2 size={18} className="animate-spin" /> : 'اعتماد التقفيل'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
