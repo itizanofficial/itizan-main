@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Loader2 } from 'lucide-react';
 import { LineChart, Line, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { supabase } from '../../../services/supabase';
+import { reportsService } from '../../../services/reportsService';
 
 export const ProgressChart: React.FC<{ patientId: string }> = ({ patientId }) => {
   const [loading, setLoading] = useState(true);
@@ -12,53 +12,25 @@ export const ProgressChart: React.FC<{ patientId: string }> = ({ patientId }) =>
     const fetchEvaluations = async () => {
       setLoading(true);
       try {
-        // محاولة جلب التقييمات الحقيقية للمريض من جدول التقييمات
-        const { data: evals, error } = await supabase
-          .from('evaluations')
-          .select('*')
-          .eq('patient_id', patientId)
-          .order('created_at', { ascending: true })
-          .limit(5);
-
-        if (!error && evals && evals.length > 0) {
-          // تجهيز داتا حقيقية
-          const formattedLine = evals.map((e, i) => ({
-            month: `جلسة ${i + 1}`,
-            sleep: e.sleep_score || 5,
-            communication: e.communication_score || 5,
-            depression: e.depression_score || 5,
-            anxiety: e.anxiety_score || 5
-          }));
-          setLineData(formattedLine);
-          
-          const latest = evals[evals.length - 1];
-          setRadarData([
-            { subject: 'التواصل', A: (latest.communication_score || 5) * 10, fullMark: 100 },
-            { subject: 'النشاط', A: (latest.activity_score || 5) * 10, fullMark: 100 },
-            { subject: 'النوم', A: (latest.sleep_score || 5) * 10, fullMark: 100 },
-            { subject: 'التركيز', A: (latest.focus_score || 5) * 10, fullMark: 100 },
-            { subject: 'المزاج', A: (latest.mood_score || 5) * 10, fullMark: 100 },
-            { subject: 'القلق', A: (latest.anxiety_score || 5) * 10, fullMark: 100 },
-          ]);
+        const result = await reportsService.getEvaluations(patientId);
+        if (result) {
+          setLineData(result.lineData);
+          setRadarData(result.radarData);
         } else {
-          throw new Error('No data, using fallback');
+          throw new Error('No Data');
         }
       } catch (err) {
-        // 🌟 Smart Fallback: عشان الشاشة متكونش فاضية وقت المناقشة لو الداتا مش كاملة
+        // 🌟 تصفير كامل للشارت (بدون داتا وهمية) ليعكس الواقع
         setLineData([
-          { month: 'يناير', sleep: 4, communication: 5, depression: 8, anxiety: 7 },
-          { month: 'فبراير', sleep: 5, communication: 6, depression: 7, anxiety: 6 },
-          { month: 'مارس', sleep: 6, communication: 7, depression: 5, anxiety: 5 },
-          { month: 'أبريل', sleep: 7, communication: 7, depression: 4, anxiety: 4 },
-          { month: 'مايو', sleep: 8, communication: 8, depression: 3, anxiety: 3 },
+          { month: 'لا توجد تقييمات', sleep: 0, communication: 0, depression: 0, anxiety: 0 }
         ]);
         setRadarData([
-          { subject: 'التواصل', A: 80, fullMark: 100 },
-          { subject: 'النشاط', A: 70, fullMark: 100 },
-          { subject: 'النوم', A: 85, fullMark: 100 },
-          { subject: 'التركيز', A: 65, fullMark: 100 },
-          { subject: 'المزاج', A: 75, fullMark: 100 },
-          { subject: 'القلق', A: 40, fullMark: 100 },
+          { subject: 'التواصل', A: 0, fullMark: 100 },
+          { subject: 'النشاط', A: 0, fullMark: 100 },
+          { subject: 'النوم', A: 0, fullMark: 100 },
+          { subject: 'التركيز', A: 0, fullMark: 100 },
+          { subject: 'المزاج', A: 0, fullMark: 100 },
+          { subject: 'القلق', A: 0, fullMark: 100 },
         ]);
       } finally {
         setLoading(false);
@@ -74,7 +46,7 @@ export const ProgressChart: React.FC<{ patientId: string }> = ({ patientId }) =>
     <div className="space-y-6 animate-fade-in mt-8">
       <div className="flex items-center gap-2 mb-4">
         <TrendingUp className="text-[#00838F]" size={20} />
-        <h3 className="text-lg font-black text-gray-800 dark:text-white">التقدم السلوكي</h3>
+        <h3 className="text-lg font-black text-gray-800 dark:text-white">التقدم السلوكي (تقييمات فعلية)</h3>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -85,7 +57,7 @@ export const ProgressChart: React.FC<{ patientId: string }> = ({ patientId }) =>
               <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
               <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fontWeight: 'bold' }} />
               <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
-              <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontWeight: 'bold' }} />
+              <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontWeight: 'bold', textAlign:'right' }} />
               <Line type="monotone" dataKey="communication" name="التواصل" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4 }} />
               <Line type="monotone" dataKey="sleep" name="النوم" stroke="#10B981" strokeWidth={3} dot={{ r: 4 }} />
               <Line type="monotone" dataKey="depression" name="الاكتئاب" stroke="#F59E0B" strokeWidth={3} dot={{ r: 4 }} />
@@ -102,7 +74,7 @@ export const ProgressChart: React.FC<{ patientId: string }> = ({ patientId }) =>
               <PolarAngleAxis dataKey="subject" tick={{ fill: '#4B5563', fontSize: 12, fontWeight: 'bold' }} />
               <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
               <Radar name="التقييم" dataKey="A" stroke="#00838F" fill="#00BCD4" fillOpacity={0.5} />
-              <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontWeight: 'bold' }} />
+              <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontWeight: 'bold', textAlign:'right' }} />
             </RadarChart>
           </ResponsiveContainer>
         </div>

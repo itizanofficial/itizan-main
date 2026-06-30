@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Trash2, Plus, RefreshCw, AlignRight, ListChecks, X, CheckSquare } from 'lucide-react';
-import toast from 'react-hot-toast'; // 🌟 مكتبة الإشعارات الشيك
+import { Calendar, Trash2, Plus, RefreshCw, AlignRight, ListChecks, X, CheckSquare, Square } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../../../services/supabase';
 
 interface DailyTasksManagerProps {
@@ -12,8 +12,8 @@ export const DailyTasksManager: React.FC<DailyTasksManagerProps> = ({ patientId 
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [taskInput, setTaskInput] = useState(''); 
-  const [tasksList, setTasksList] = useState<string[]>([]); 
+  const [taskInput, setTaskInput] = useState('');
+  const [tasksList, setTasksList] = useState<string[]>([]);
   const [doctorNotes, setDoctorNotes] = useState('');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [repeatDays, setRepeatDays] = useState(1);
@@ -38,12 +38,21 @@ export const DailyTasksManager: React.FC<DailyTasksManagerProps> = ({ patientId 
 
   useEffect(() => {
     if (patientId) fetchTasks();
+
+    // 🌟 تشغيل المزامنة اللايف: لو المريض علم على حاجة تظهر للدكتور فوراً
+    const channel = supabase.channel('tasks_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_tasks', filter: `patient_id=eq.${patientId}` }, () => {
+        fetchTasks();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [patientId]);
 
   const addSingleTaskToList = () => {
     if (taskInput.trim() !== '') {
       setTasksList([...tasksList, taskInput.trim()]);
-      setTaskInput(''); 
+      setTaskInput('');
     }
   };
 
@@ -54,7 +63,7 @@ export const DailyTasksManager: React.FC<DailyTasksManagerProps> = ({ patientId 
   const handleSavePlan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (tasksList.length === 0) {
-      toast.error('يرجى إدراج نشاط علاجي واحد على الأقل قبل الاعتماد.'); // 🌟 Toast شيك
+      toast.error('يرجى إدراج نشاط علاجي واحد على الأقل قبل الاعتماد.');
       return;
     }
 
@@ -62,16 +71,17 @@ export const DailyTasksManager: React.FC<DailyTasksManagerProps> = ({ patientId 
     try {
       const start = new Date(startDate);
       const end = new Date(start);
-      end.setDate(start.getDate() + (repeatDays - 1)); 
+      end.setDate(start.getDate() + (repeatDays - 1));
       const endDateStr = end.toISOString().split('T')[0];
 
       const { data: { user } } = await supabase.auth.getUser();
 
       const { error } = await supabase.from('daily_tasks').insert([{
         patient_id: patientId,
-        doctor_id: user?.id, 
-        task_title: 'خطة أنشطة متعددة', 
-        tasks_list: tasksList, 
+        doctor_id: user?.id,
+        task_title: 'خطة أنشطة متعددة',
+        tasks_list: tasksList,
+        completed_tasks: [], // 🌟 تترفع الداتا بيز فاضية في الأول
         doctor_notes: doctorNotes.trim() || null,
         start_date: startDate,
         end_date: endDateStr
@@ -83,7 +93,7 @@ export const DailyTasksManager: React.FC<DailyTasksManagerProps> = ({ patientId 
       setDoctorNotes('');
       setRepeatDays(1);
       fetchTasks();
-      toast.success('تم اعتماد البرنامج السلوكي للمراجع بنجاح.'); // 🌟 إشعار احترافي
+      toast.success('تم اعتماد البرنامج السلوكي للمراجع بنجاح.');
     } catch (err: any) {
       console.error('Error adding task:', err);
       toast.error('تعذر مزامنة الخطة العلاجية، يرجى التحقق من الخادم.');
@@ -93,7 +103,6 @@ export const DailyTasksManager: React.FC<DailyTasksManagerProps> = ({ patientId 
   };
 
   const handleDeletePlan = async (taskId: string) => {
-    // 🌟 استبدال نافذة المتصفح المزعجة برد فعل فوري و Toast
     try {
       await supabase.from('daily_tasks').delete().eq('id', taskId);
       setTasks(tasks.filter(t => t.id !== taskId));
@@ -106,27 +115,27 @@ export const DailyTasksManager: React.FC<DailyTasksManagerProps> = ({ patientId 
 
   return (
     <div className="space-y-6 animate-fade-in">
-      
+
       <div className="bg-gray-50 dark:bg-gray-800/50 p-6 rounded-2xl border border-gray-100 dark:border-gray-800">
         <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-[#00838F] dark:text-cyan-400">
           <ListChecks size={20} /> بناء البرنامج السلوكي والوظيفي
         </h3>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          
+
           <div className="space-y-3 bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">المهام / الأنشطة المجدولة</label>
             <div className="flex gap-2">
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={taskInput}
                 onChange={(e) => setTaskInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSingleTaskToList(); } }}
-                placeholder="مثال: جلسة استرخاء عضلي متدرج (PMR)" 
+                placeholder="مثال: جلسة استرخاء عضلي متدرج (PMR)"
                 className="flex-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl py-2.5 px-4 focus:outline-none focus:border-[#00838F] text-sm font-bold"
               />
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={addSingleTaskToList}
                 className="bg-[#00838F] hover:bg-[#006064] text-white px-4 rounded-xl transition-colors flex items-center justify-center"
               >
@@ -180,8 +189,8 @@ export const DailyTasksManager: React.FC<DailyTasksManagerProps> = ({ patientId 
         </div>
 
         <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
-          <button 
-            onClick={handleSavePlan} 
+          <button
+            onClick={handleSavePlan}
             disabled={isSubmitting || tasksList.length === 0}
             className="bg-[#00838F] hover:bg-[#006064] text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
           >
@@ -206,13 +215,13 @@ export const DailyTasksManager: React.FC<DailyTasksManagerProps> = ({ patientId 
             {tasks.map(plan => {
               const end = new Date(plan.end_date).getTime();
               const today = new Date().getTime();
-              const isFinished = end < today - (24 * 60 * 60 * 1000); 
+              const isFinished = end < today - (24 * 60 * 60 * 1000);
 
               const displayTasks = plan.tasks_list && plan.tasks_list.length > 0 ? plan.tasks_list : [plan.title];
 
               return (
                 <div key={plan.id} className={`bg-white dark:bg-gray-800 rounded-3xl p-5 border shadow-sm relative transition-all ${isFinished ? 'border-gray-200 dark:border-gray-700 opacity-60' : 'border-gray-100 dark:border-gray-700'}`}>
-                  
+
                   <div className="flex justify-between items-start mb-4">
                     <h4 className="font-black text-lg text-gray-900 dark:text-white flex items-center gap-2">
                       <ListChecks size={20} className="text-[#00838F]" /> قائمة المهام المعتمدة:
@@ -221,16 +230,33 @@ export const DailyTasksManager: React.FC<DailyTasksManagerProps> = ({ patientId 
                       <Trash2 size={16} />
                     </button>
                   </div>
-                  
+
                   <div className="space-y-3 mb-6 pl-2">
-                    {displayTasks.map((t: string, idx: number) => (
-                      <div key={idx} className="flex items-center gap-3">
-                        <div className="w-5 h-5 rounded flex items-center justify-center border-2 border-[#00838F] bg-[#00838F]">
-                          <CheckSquare size={14} className="text-white" />
+                    {displayTasks.map((t: string, idx: number) => {
+                      // 🌟 اللوجيك الحقيقي: هل المريض خلص المهمة ولا لأ؟
+                      // حساب اليوم الفعلي عند الدكتور (نفس لوجيك 5 الفجر)
+                      const effectiveDate = new Date();
+                      if (effectiveDate.getHours() < 5) effectiveDate.setDate(effectiveDate.getDate() - 1);
+                      const todayStr = effectiveDate.toLocaleDateString('en-CA');
+
+                      const isTaskDone = plan.completed_tasks && plan.completed_tasks.includes(`${t}|${todayStr}`);
+                      return (
+                        <div key={idx} className="flex items-center gap-3">
+                          {isTaskDone ? (
+                            <div className="w-5 h-5 rounded flex items-center justify-center border-2 border-emerald-500 bg-emerald-500">
+                              <CheckSquare size={14} className="text-white" />
+                            </div>
+                          ) : (
+                            <div className="w-5 h-5 rounded flex items-center justify-center border-2 border-gray-300 dark:border-gray-600 bg-transparent">
+                              <Square size={14} className="text-transparent" />
+                            </div>
+                          )}
+                          <span className={`font-bold text-sm ${isTaskDone ? 'text-emerald-600 dark:text-emerald-400 line-through opacity-70' : 'text-gray-700 dark:text-gray-300'}`}>
+                            {t}
+                          </span>
                         </div>
-                        <span className="text-gray-700 dark:text-gray-300 font-bold text-sm">{t}</span>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
 
                   {plan.doctor_notes ? (

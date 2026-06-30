@@ -20,6 +20,22 @@ export const SecretaryReservations = () => {
   const [isCloseDayModalOpen, setIsCloseDayModalOpen] = useState(false);
   const [isClosingDay, setIsClosingDay] = useState(false);
 
+  // 🌟 دالة مساعدة لإرسال الإشعارات للمريض
+  const sendNotification = async (patientId: string, title: string, body: string, type: string) => {
+    if (!patientId) return;
+    try {
+      await supabase.from('notifications').insert([{
+        patient_id: patientId,
+        title,
+        body,
+        type,
+        is_read: false
+      }]);
+    } catch (err) {
+      console.error('Error sending notification:', err);
+    }
+  };
+
   const loadData = async () => {
     try {
       const currentAdminId = await secretaryService.getCurrentAdminId();
@@ -38,7 +54,6 @@ export const SecretaryReservations = () => {
           pending++;
         }
 
-        // 🌟 حساب الخزينة الحالية (للوردية اللي لسه متقفلتش بس)
         if (apt.payment_status === 'paid' && !apt.shift_closed) {
           shiftRevenue += Number(apt.fees || 0);
         }
@@ -76,24 +91,54 @@ export const SecretaryReservations = () => {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
+  // 🌟 تعديل: تأكيد الدفع وإرسال إشعار للمريض
   const handleConfirmPayment = async (sessionId: string) => {
     setActionLoading(sessionId);
     try {
       await secretaryService.confirmPaymentAndSession(sessionId);
+      
+      // جلب الـ patientId من الـ state عشان نبعتله الإشعار
+      const targetAppointment = appointments.find(apt => apt.id === sessionId);
+      if (targetAppointment && targetAppointment.patientId) {
+        await sendNotification(
+          targetAppointment.patientId,
+          'تم تأكيد الحجز والدفع ✅',
+          'تم تأكيد جلستك بنجاح، الطبيب بانتظارك في الموعد المحدد.',
+          'payment_confirmed'
+        );
+      }
+
       toast.success('تم تأكيد الدفع بنجاح وزاد إجمالي التحصيل! 💰✅');
       await loadData(); 
-    } catch (error) { toast.error("حدث خطأ أثناء التأكيد"); } 
-    finally { setActionLoading(null); }
+    } catch (error) { 
+      toast.error("حدث خطأ أثناء التأكيد"); 
+    } finally { 
+      setActionLoading(null); 
+    }
   };
 
+  // 🌟 تعديل: الحفظ المبدئي وإرسال إشعار بالدفع
   const handleSaveModal = async (data: any) => {
     try {
       if (!adminId) return;
       await secretaryService.saveSession(data, adminId);
+      
+      if (data.patient_id && !data.id) {
+        // إشعار بالحجز الجديد فقط (مش التعديل)
+        await sendNotification(
+          data.patient_id,
+          'تم تسجيل حجزك مبدئياً 📅',
+          'يرجى الدفع لتأكيد موعد الجلسة نهائياً.',
+          'new_booking'
+        );
+      }
+
       toast.success(data.id ? 'تم تعديل الجلسة بنجاح 🔄' : 'تم الحجز بنجاح، في انتظار الدفع! 📅');
       setIsModalOpen(false);
       loadData();
-    } catch (err: any) { toast.error(err.message || 'حدث خطأ أثناء الحفظ'); }
+    } catch (err: any) { 
+      toast.error(err.message || 'حدث خطأ أثناء الحفظ'); 
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -104,7 +149,22 @@ export const SecretaryReservations = () => {
     } catch (err: any) { toast.error('حدث خطأ أثناء الإلغاء'); }
   };
 
-  // 🌟 دالة تقفيل اليومية (بتخزن التقرير وتصفر الخزينة)
+  // 🌟 إضافة: زر التذكير يرسل إشعار فعلي للداتابيز
+  const handleRemindPatient = async (sessionId: string) => {
+    const targetAppointment = appointments.find(apt => apt.id === sessionId);
+    if (targetAppointment && targetAppointment.patientId) {
+      await sendNotification(
+        targetAppointment.patientId,
+        'تذكير بتأكيد الجلسة ',
+        'يرجى المبادرة بدفع رسوم الجلسة لتأكيد موعدك قبل الإلغاء.',
+        'reminder'
+      );
+      toast.success('تم إرسال التذكير للمريض بنجاح 🔔');
+    } else {
+      toast.error('لم يتم العثور على بيانات المريض');
+    }
+  };
+
   const handleCloseDailyReport = async () => {
     if (stats.todayRevenue === 0) {
       toast.error('الخزينة فارغة بالفعل! لا يوجد إيرادات لتقفيلها.');
@@ -117,7 +177,6 @@ export const SecretaryReservations = () => {
       const { data: { user } } = await supabase.auth.getUser();
       const todayStr = new Date().toLocaleDateString('en-CA');
       
-      // 1. تسجيل التقرير للمدير
       await supabase.from('daily_reports').insert([{
         admin_id: adminId,
         secretary_id: user?.id,
@@ -126,7 +185,6 @@ export const SecretaryReservations = () => {
         confirmed_sessions: stats.confirmed
       }]);
 
-      // 2. تصفير الوردية (تحديث الجلسات المدفوعة لـ shift_closed = true)
       await supabase.from('sessions')
         .update({ shift_closed: true })
         .eq('admin_id', adminId)
@@ -135,7 +193,7 @@ export const SecretaryReservations = () => {
 
       toast.success('تم تقفيل الخزينة وتصفير الإيرادات لبدء وردية جديدة! 📜✅');
       setIsCloseDayModalOpen(false);
-      loadData(); // هيقرا من جديد ويلاقي الفلوس 0
+      loadData();
     } catch (err: any) {
       toast.error('حدث خطأ أثناء تقفيل اليومية');
     } finally {
@@ -196,13 +254,19 @@ export const SecretaryReservations = () => {
         </div>
 
         {loading ? <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-[#00838F]" size={40}/></div> : 
-          <SecretaryAppointmentTable appointments={filteredAppointments} onConfirmPayment={handleConfirmPayment} actionLoading={actionLoading} onEdit={(data: any) => { setEditingData(data); setIsModalOpen(true); }} onDelete={handleDelete} onRemind={() => toast.success('تم إرسال التذكير للمريض بنجاح 🔔')} />
+          <SecretaryAppointmentTable 
+            appointments={filteredAppointments} 
+            onConfirmPayment={handleConfirmPayment} 
+            actionLoading={actionLoading} 
+            onEdit={(data: any) => { setEditingData(data); setIsModalOpen(true); }} 
+            onDelete={handleDelete} 
+            onRemind={handleRemindPatient} // 🌟 تمرير الدالة الجديدة للزرار
+          />
         }
       </div>
 
       <SecretaryAppointmentModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} adminId={adminId} onSave={handleSaveModal} editingData={editingData} />
 
-      {/* 🌟 مودال تأكيد تقفيل اليومية */}
       {isCloseDayModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in px-4">
           <div className="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-6 border border-gray-100">

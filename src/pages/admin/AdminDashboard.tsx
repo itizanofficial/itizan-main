@@ -22,44 +22,90 @@ export const AdminDashboard: React.FC = () => {
   // 🌟 قائمة جلسات اليوم للعرض فقط
   const [todaySessionsList, setTodaySessionsList] = useState<any[]>([]);
 
+  // دالة مساعدة للحصول على admin_id الخاص بالمدير الحالي
+  const getAdminId = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    
+    // أولاً: نتأكد هل هو أدمن فعلاً؟
+    const { data: admin } = await supabase
+      .from('admins')
+      .select('id')
+      .eq('id', user.id)
+      .single();
+      
+    return admin ? admin.id : null;
+  };
+
   const fetchDashboardStats = async () => {
     setLoadingStats(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const currentAdminId = await getAdminId();
+      if (!currentAdminId) {
+        toast.error("صلاحيات غير صالحة، يرجى تسجيل الدخول كمدير.");
+        setLoadingStats(false);
+        return;
+      }
 
       const now = new Date();
-      const todayDate = now.toISOString().split('T')[0];
+      // ظبطنا الوقت ليكون دقيق من بداية لنهاية اليوم المحلي
+      now.setHours(0, 0, 0, 0);
+      const todayStart = now.toISOString();
+      now.setHours(23, 59, 59, 999);
+      const todayEnd = now.toISOString();
+      
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
       const currentMonth = now.toISOString().slice(0, 7); 
 
-      // 1. إيرادات وجلسات اليوم (مع جلب تفاصيل الجلسات لعرضها في الجدول)
-      const { data: todaySessions } = await supabase
+      // =========================================
+      // 1. إيرادات وجلسات "اليوم" لعيادة المدير الحالي فقط
+      // =========================================
+      const { data: todaySessions, error: sessionErr } = await supabase
         .from('sessions')
         .select(`
           id, fees, payment_status, session_date, status, session_type,
-          patient:patients(name, full_name),
-          doctor:doctors(name, full_name)
+          patient:patients(name),
+          doctor:doctors(full_name)
         `)
-        .gte('session_date', `${todayDate}T00:00:00`)
-        .lte('session_date', `${todayDate}T23:59:59`)
+        .eq('admin_id', currentAdminId) // 🌟 الفلترة الأهم!
+        .gte('session_date', todayStart)
+        .lte('session_date', todayEnd)
         .order('session_date', { ascending: true });
+
+      if (sessionErr) console.error("Error fetching sessions:", sessionErr);
 
       setTodaySessionsList(todaySessions || []);
       setTodaySessionsCount(todaySessions?.length || 0);
 
-      // حساب إيرادات اليوم للجلسات المدفوعة فقط
+      // حساب إيرادات اليوم للجلسات المدفوعة فعلياً
       const dailyRev = todaySessions?.reduce((sum, s) => s.payment_status === 'paid' ? sum + (Number(s.fees) || 0) : sum, 0) || 0;
       setTodayRevenue(dailyRev);
 
-      // 2. مصروفات الشهر الحالي (للعرض في الكارت)
-      const { data: monthExpenses } = await supabase.from('expenses').select('amount').gte('created_at', startOfMonth);
+      // =========================================
+      // 2. مصروفات الشهر الحالي
+      // =========================================
+      const { data: monthExpenses } = await supabase
+        .from('expenses')
+        .select('amount')
+        .eq('admin_id', currentAdminId) // فلترة
+        .gte('created_at', startOfMonth);
+      
       const currentMonthExpenses = monthExpenses?.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0) || 0;
       setMonthlyExpenses(currentMonthExpenses);
       
+      // =========================================
       // 3. صافي الربح الختامي العام
-      const { data: allSessions } = await supabase.from('sessions').select('fees').eq('payment_status', 'paid');
-      const { data: allExpenses } = await supabase.from('expenses').select('amount');
+      // =========================================
+      const { data: allSessions } = await supabase
+        .from('sessions')
+        .select('fees')
+        .eq('admin_id', currentAdminId)
+        .eq('payment_status', 'paid'); // المدفوع فقط
+        
+      const { data: allExpenses } = await supabase
+        .from('expenses')
+        .select('amount')
+        .eq('admin_id', currentAdminId);
       
       let allTimeRev = 0;
       allSessions?.forEach(s => allTimeRev += Number(s.fees) || 0);
@@ -68,9 +114,11 @@ export const AdminDashboard: React.FC = () => {
       
       setNetProfit(allTimeRev - allTimeExp); 
 
+      // =========================================
       // 4. جلب حسابات الفريق (السلف والرواتب)
-      const { data: doctors } = await supabase.from('doctors').select('salary, loan, last_paid_month').eq('admin_id', user.id);
-      const { data: secretaries } = await supabase.from('secretaries').select('salary, loan, last_paid_month').eq('admin_id', user.id);
+      // =========================================
+      const { data: doctors } = await supabase.from('doctors').select('salary, loan, last_paid_month').eq('admin_id', currentAdminId);
+      const { data: secretaries } = await supabase.from('secretaries').select('salary, loan, last_paid_month').eq('admin_id', currentAdminId);
       
       let totalLoans = 0;
       let totalDueSalaries = 0;
@@ -83,8 +131,10 @@ export const AdminDashboard: React.FC = () => {
         }
       });
 
+      // =========================================
       // 5. جلب الالتزامات الثابتة (إيجارات، ضرائب)
-      const { data: obs } = await supabase.from('fixed_obligations').select('amount, last_paid_month').eq('admin_id', user.id);
+      // =========================================
+      const { data: obs } = await supabase.from('fixed_obligations').select('amount, last_paid_month').eq('admin_id', currentAdminId);
       obs?.forEach(ob => {
         if (ob.last_paid_month !== currentMonth) {
           totalDueSalaries += Number(ob.amount) || 0; 
@@ -101,15 +151,30 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchDashboardStats(); }, []);
+  useEffect(() => { 
+    fetchDashboardStats(); 
+    
+    // تفعيل التحديث المباشر للوحة المدير عند إضافة السكرتير لجلسة أو دفع
+    const channel = supabase.channel('admin_dashboard_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => { fetchDashboardStats(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => { fetchDashboardStats(); })
+      .subscribe();
+      
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!expenseAmount || !expenseNote) return;
     setIsSubmitting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      await supabase.from('expenses').insert([{ amount: Number(expenseAmount), note: expenseNote, admin_id: user?.id, category: 'مصروفات تشغيلية' }]);
+      const currentAdminId = await getAdminId();
+      await supabase.from('expenses').insert([{ 
+        amount: Number(expenseAmount), 
+        note: expenseNote, 
+        admin_id: currentAdminId, 
+        category: 'مصروفات تشغيلية' 
+      }]);
       toast.success(`تم قيد مصروف بقيمة ${expenseAmount} ج.م بنجاح ✅`);
       setExpenseAmount(''); setExpenseNote('');
       fetchDashboardStats(); 
@@ -207,7 +272,7 @@ export const AdminDashboard: React.FC = () => {
                 {todaySessionsList.map((session, idx) => (
                   <tr key={idx} className="border-b last:border-0 border-gray-50 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
                     <td className="p-4 font-black text-gray-900 dark:text-white">{session.patient?.name || session.patient?.full_name || 'غير مسجل'}</td>
-                    <td className="p-4 font-bold text-gray-700 dark:text-gray-300">{session.doctor?.name || session.doctor?.full_name || '---'}</td>
+                    <td className="p-4 font-bold text-gray-700 dark:text-gray-300">{session.doctor?.full_name || session.doctor?.name || '---'}</td>
                     <td className="p-4 font-bold text-gray-500 dark:text-gray-400 text-center" dir="ltr">
                       {session.session_date ? new Date(session.session_date).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '---'}
                     </td>

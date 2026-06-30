@@ -24,13 +24,23 @@ export const Appointments: React.FC = () => {
   
   const [appointments, setAppointments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentDoctorId, setCurrentDoctorId] = useState<string | null>(null);
 
-  const fetchAppointments = async () => {
+  // 🌟 الاستعلام المُدرع لحل مشكلة عدم الظهور
+  const fetchAppointments = async (userId: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data, error } = await supabase
+        .from('sessions')
+        .select(`
+          id, session_date, session_type, mode, diagnosis, status, payment_status, fees,
+          patient_id, doctor_id, admin_id,
+          patient:patients(id, name, dob, phone) 
+        `)
+        // 🌟 التعديل السحري: هنجيب الجلسة لو إنت الدكتور بتاعها، أو لو إنت صاحب العيادة (عشان لو السكرتير غلط)
+        .or(`doctor_id.eq.${userId},admin_id.eq.${userId}`)
+        .order('session_date', { ascending: false });
 
-      const data = await doctorService.getAppointments(user.id);
+      if (error) throw error;
       
       const formatted = (data || []).map((apt: any) => {
         const dateObj = apt.session_date ? new Date(apt.session_date) : new Date();
@@ -40,8 +50,8 @@ export const Appointments: React.FC = () => {
         return {
           id: apt.id,
           patientId: apt.patient?.id || apt.patient_id,
-          patientName: apt.patient?.name || apt.patient?.full_name || 'مريض غير مسجل',
-          age: (apt.patient?.dob || apt.patient?.birth_date) ? calculateAge(apt.patient?.dob || apt.patient?.birth_date) : '---', 
+          patientName: apt.patient?.name || 'مريض غير مسجل',
+          age: apt.patient?.dob ? calculateAge(apt.patient.dob) : '---', 
           phone: apt.patient?.phone || '---',
           date: yyyyMmDd,
           time: timeStr,
@@ -63,48 +73,62 @@ export const Appointments: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchAppointments();
-    const subscription = supabase
-      .channel('appointments_channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => {
-        fetchAppointments(); 
-      })
-      .subscribe();
+    let subscription: any;
 
-    return () => { supabase.removeChannel(subscription); };
+    const setupComponent = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      setCurrentDoctorId(user.id);
+      
+      await fetchAppointments(user.id);
+
+      // 🌟 التصنت على كل تغييرات الجلسات بدون فلتر يمنع الداتا الجديدة
+      subscription = supabase
+        .channel('doctor_appointments_channel')
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'sessions' 
+        }, () => {
+          fetchAppointments(user.id); 
+        })
+        .subscribe();
+    };
+
+    setupComponent();
+
+    return () => { 
+      if (subscription) supabase.removeChannel(subscription); 
+    };
   }, []);
 
-  const filteredAppointments = appointments.filter(apt => {
+  const filteredAppointments = appointments.filter((apt: any) => {
     const matchSearch = (apt.patientName && apt.patientName.toLowerCase().includes(searchTerm.toLowerCase())) || 
                         (apt.phone && apt.phone.includes(searchTerm));
     
-    const isPaidAndConfirmed = (apt.rawStatus === 'مؤكدة' || apt.rawStatus === 'confirmed' || apt.rawStatus === 'مكتملة') && apt.payment_status === 'paid';
-    
-    if (isPaidAndConfirmed && statusFilter !== 'مؤكد ومدفوع') {
-      return false; // طرد للشاشة التشغيلية
-    }
+    const isPaidAndConfirmed = (apt.rawStatus === 'مؤكدة' || apt.rawStatus === 'confirmed' || apt.rawStatus === 'مكتملة' || apt.rawStatus === 'completed') && apt.payment_status === 'paid';
+    const isPending = !isPaidAndConfirmed && apt.rawStatus !== 'ملغاة' && apt.rawStatus !== 'cancelled' && apt.rawStatus !== 'فائتة' && apt.rawStatus !== 'missed';
 
-    const isPending = !isPaidAndConfirmed && apt.rawStatus !== 'ملغاة' && apt.rawStatus !== 'cancelled';
-    
     let matchStatus = true;
-    if (statusFilter === 'مؤكد ومدفوع') matchStatus = isPaidAndConfirmed;
-    if (statusFilter === 'بانتظار الدفع/التأكيد') matchStatus = isPending;
+    if (statusFilter === 'مؤكد ومدفوع') {
+      matchStatus = isPaidAndConfirmed;
+    } else if (statusFilter === 'بانتظار الدفع/التأكيد') {
+      matchStatus = isPending;
+    }
 
     return matchSearch && matchStatus;
   });
 
-  // 🌟 دالة الحفظ الصارمة لحماية الداتا بيز 🌟
   const handleSave = async (data: any) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!currentDoctorId) return;
 
-      const { data: doctorData } = await supabase.from('doctors').select('admin_id, consultation_price, followup_price').eq('id', user.id).single();
+      const { data: doctorData } = await supabase.from('doctors').select('admin_id, consultation_price, followup_price').eq('id', currentDoctorId).single();
       const combinedDateTime = new Date(`${data.date}T${data.time}:00`).toISOString();
 
       const sessionPayload: any = {
-        doctor_id: user.id,
-        admin_id: doctorData?.admin_id, 
+        doctor_id: currentDoctorId,
+        admin_id: doctorData?.admin_id || currentDoctorId, 
         patient_id: data.patientId,
         session_date: combinedDateTime,
         session_type: data.session_type || 'كشف',
@@ -113,7 +137,6 @@ export const Appointments: React.FC = () => {
       };
 
       if (data.id) {
-        // حماية الفلوس في حالة التعديل
         const { data: oldSession } = await supabase.from('sessions').select('*').eq('id', data.id).single();
         if (oldSession && oldSession.payment_status !== 'paid') {
             sessionPayload.fees = data.fees;
@@ -124,7 +147,7 @@ export const Appointments: React.FC = () => {
         toast.success('تم تعديل الحجز بنجاح.');
       } else {
         sessionPayload.fees = data.fees;
-        sessionPayload.status = 'قيد الانتظار';
+        sessionPayload.status = 'مجدولة'; 
         sessionPayload.payment_status = 'unpaid';
 
         await supabase.from('sessions').insert([sessionPayload]);
@@ -132,7 +155,7 @@ export const Appointments: React.FC = () => {
         toast.success('تم حجز الموعد المبدئي بنجاح.');
       }
       setIsModalOpen(false);
-      fetchAppointments(); 
+      fetchAppointments(currentDoctorId); 
 
     } catch (error: any) {
       toast.error('حصلت مشكلة أثناء الحفظ.');
@@ -151,7 +174,7 @@ export const Appointments: React.FC = () => {
               try {
                 await supabase.from('sessions').delete().eq('id', id);
                 toast.success('تم إلغاء الحجز بنجاح.');
-                fetchAppointments(); 
+                if (currentDoctorId) fetchAppointments(currentDoctorId); 
               } catch (error) {
                 toast.error('تعذر إلغاء الحجز حالياً.');
               }
@@ -184,10 +207,16 @@ export const Appointments: React.FC = () => {
             onClick={async () => {
               toast.dismiss(t.id);
               try {
-                await doctorService.updateSessionStatus(apt.id, 'confirmed');
+                const { error: updateError } = await supabase
+                  .from('sessions')
+                  .update({ status: 'مؤكدة' })
+                  .eq('id', apt.id);
+
+                if (updateError) throw updateError;
+
                 await doctorService.sendPatientNotification(apt.patientId, 'تأكيد مبدئي ✅', `تم الموافقة على الموعد يوم ${apt.date} الساعة ${apt.time} مبدئياً. يرجى إتمام الدفع لتأكيد الحجز النهائي.`, 'system');
                 toast.success('تم التأكيد المبدئي بنجاح!');
-                fetchAppointments(); 
+                if (currentDoctorId) fetchAppointments(currentDoctorId); 
               } catch (error: any) {
                 toast.error('حدث خطأ أثناء التأكيد.');
               }
@@ -203,7 +232,6 @@ export const Appointments: React.FC = () => {
 
   return (
     <div dir="rtl" className="space-y-6 animate-fade-in pb-10 font-sans text-gray-900 dark:text-white">
-      
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-gray-900 dark:text-white">إدارة الحجوزات</h1>
@@ -215,7 +243,6 @@ export const Appointments: React.FC = () => {
       </div>
 
       <div className="bg-white dark:bg-gray-900 rounded-[2rem] border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden flex flex-col">
-        
         <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex flex-col lg:flex-row justify-between items-center gap-4 bg-white dark:bg-gray-900">
           <div className="relative w-full lg:w-96">
             <input 

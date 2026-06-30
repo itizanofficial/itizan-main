@@ -83,7 +83,8 @@ export const SecretaryAppointmentTable = ({ appointments, onEdit, onDelete, onRe
                       </button>
                     )}
 
-                    <button onClick={() => onRemind(apt)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-xl transition-colors border border-blue-100" title="إرسال تذكير للمريض">
+                    {/* 🌟 التعديل تم هنا: تمرير apt.id بدلاً من apt */}
+                    <button onClick={() => onRemind(apt.id)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-xl transition-colors border border-blue-100" title="إرسال تذكير للمريض">
                       <Mail size={18} />
                     </button>
                     

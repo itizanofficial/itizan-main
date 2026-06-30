@@ -66,35 +66,37 @@ export const secretaryService = {
     return data;
   },
 
-  // 🌟 5. الدالة المنقذة: حفظ وتعديل الجلسة (خاصة بالسكرتير)
+  // 🌟 تحديث محمي: دعم الـ Snake_case والـ CamelCase معاً لمنع الـ NULL
   saveSession: async (sessionData: any, adminId: string) => {
     try {
       const sessionDate = new Date(`${sessionData.date}T${sessionData.time}:00`).toISOString();
+      const targetDoctorId = sessionData.doctorId || sessionData.doctor_id;
+      const targetPatientId = sessionData.patientId || sessionData.patient_id;
 
-      // الداتا الأساسية اللي مسموح تتبعت للداتا بيز
+      if (!targetDoctorId || !targetPatientId) {
+        throw new Error("بيانات الطبيب أو المراجع ناقصة! يرجى التحقق من الاختيارات.");
+      }
+
       const payload: any = {
-        patient_id: sessionData.patientId,
-        doctor_id: sessionData.doctorId,
-        admin_id: adminId, // 🌟 مستحيل يبقى NULL تاني
+        patient_id: targetPatientId,
+        doctor_id: targetDoctorId,
+        admin_id: adminId, 
         session_date: sessionDate,
         session_type: sessionData.session_type || 'كشف',
         mode: sessionData.mode || 'حضور بالعيادة',
       };
 
       if (sessionData.id) {
-        // 🔄 وضع التعديل (Edit)
-        // بنجيب الجلسة القديمة الأول عشان نحمي الفلوس لو كانت اتدفعت
         const { data: oldSession } = await supabase.from('sessions').select('*').eq('id', sessionData.id).single();
         
         if (oldSession && oldSession.payment_status !== 'paid') {
-          payload.fees = sessionData.fees; // نحدث الفلوس بس لو لسه متدفعتش
+          payload.fees = sessionData.fees; 
         }
 
         const { error } = await supabase.from('sessions').update(payload).eq('id', sessionData.id);
         if (error) throw error;
 
       } else {
-        // 🆕 وضع حجز جديد (Create)
         payload.fees = sessionData.fees;
         payload.status = 'قيد الانتظار';
         payload.payment_status = 'unpaid';
@@ -106,9 +108,8 @@ export const secretaryService = {
     } catch (error: any) {
       throw error;
     }
-  }, // <--- دي الفاصلة اللي كانت ناقصة وعاملة الإيرور 🌟
+  }, 
 
-  // 🌟 دالة تقفيل اليومية وإرسال التقرير
   closeDailyReport: async (adminId: string, date: string, revenue: number, sessionsCount: number) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('غير مصرح لك بإجراء هذه العملية');
@@ -122,12 +123,10 @@ export const secretaryService = {
     }]);
 
     if (error) {
-      // لو السكرتير داس تقفيل وهو متقفل قبل كده
-      if (error.code === '23505') throw new Error('تم تقفيل يومية هذا التاريخ مسبقاً! 🔒');
+      if (error.code === '23505') throw new Error('تم تقفيل يومية this تاريخ مسبقاً! 🔒');
       throw new Error(error.message);
     }
     
     return true;
   }
-
 };

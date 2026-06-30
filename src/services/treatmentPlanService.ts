@@ -44,10 +44,11 @@ export const treatmentPlanService = {
         patient_id: patientId,
         doctor_id: doctorId,
         task_title: 'خطة أنشطة متعددة', 
-        tasks_list: Array.isArray(planData.tasksList) ? planData.tasksList : [], // 🛡️ حماية عشان السوبابيز يقبلها كمصفوفة
+        tasks_list: Array.isArray(planData.tasksList) ? planData.tasksList : [],
+        completed_tasks: [], // 🌟 المهام المنجزة تبدأ فارغة
         doctor_notes: planData.doctorNotes || null,
         start_date: planData.startDate || new Date().toISOString().split('T')[0],
-        end_date: planData.endDate ? planData.endDate : null // 🛡️ منع إرسال تاريخ فارغ
+        end_date: planData.endDate ? planData.endDate : null
       };
 
       const { error } = await supabase.from('daily_tasks').insert([payload]);
@@ -101,7 +102,8 @@ export const treatmentPlanService = {
         med_name: medData.medName,
         dosage: medData.dosage || null,
         start_date: medData.startDate || new Date().toISOString().split('T')[0],
-        end_date: medData.endDate ? medData.endDate : null, // 🛡️ حماية التاريخ الفارغ
+        end_date: medData.endDate ? medData.endDate : null,
+        is_taken: false, // 🌟 تصفير الدواء
         doctor_notes: medData.doctorNotes || null
       };
 
@@ -162,9 +164,11 @@ export const treatmentPlanService = {
         doctor_id: doctorId,
         plan_type: planData.planType || 'monthly',
         plan_title: planData.planTitle || 'خطة علاجية',
-        steps_list: Array.isArray(planData.stepsList) ? planData.stepsList : [], // 🛡️ ضمان المصفوفة
+        steps_list: Array.isArray(planData.stepsList) ? planData.stepsList : [],
+        // 🌟 التعديل السحري هنا: ضفنا completed_tasks عشان الدكتور يتابع تقدم الخطة الشهرية لايف زي المهام
+        completed_tasks: [], 
         start_date: planData.startDate || new Date().toISOString().split('T')[0],
-        end_date: planData.endDate ? planData.endDate : null, // 🛡️ حماية التاريخ
+        end_date: planData.endDate ? planData.endDate : null,
         doctor_notes: planData.doctorNotes || null
       };
 

@@ -17,7 +17,6 @@ export const TreatmentTimeline: React.FC<TreatmentTimelineProps> = ({ patientId 
   const [stepInput, setStepInput] = useState('');
   const [stepsList, setStepsList] = useState<string[]>([]);
   
-  // 🌟 ضمان إن تاريخ البداية دايماً موجود ومظبوط بالتنسيق الصحيح
   const [startDate, setStartDate] = useState(() => {
     const today = new Date();
     return today.toISOString().split('T')[0];
@@ -44,8 +43,27 @@ export const TreatmentTimeline: React.FC<TreatmentTimelineProps> = ({ patientId 
     }
   };
 
+  // 🌟 التعديل السحري: تفعيل الـ Realtime Listening هنا عشان يسمع عند الدكتور فوراً
   useEffect(() => {
-    if (patientId) fetchPlans();
+    if (patientId) {
+      fetchPlans();
+
+      const subscription = supabase
+        .channel(`realtime_treatment_plans_${patientId}`)
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'treatment_plans', 
+          filter: `patient_id=eq.${patientId}` 
+        }, () => {
+          fetchPlans(); // إعادة جلب البيانات لايڤ في ثانية أول ما المريض يضغط في الموبايل
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(subscription);
+      };
+    }
   }, [patientId]);
 
   const addStepToList = () => {
@@ -70,9 +88,7 @@ export const TreatmentTimeline: React.FC<TreatmentTimelineProps> = ({ patientId 
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
-      // 🌟 اللوجيك المدرع لحساب التواريخ عشان الموبايل يلقطها دايماً
       const start = new Date(startDate);
-      // تأكد إن start مش invalid date
       if (isNaN(start.getTime())) {
           toast.error("تاريخ البداية غير صالح.");
           setIsSubmitting(false);
@@ -80,26 +96,24 @@ export const TreatmentTimeline: React.FC<TreatmentTimelineProps> = ({ patientId 
       }
 
       const end = new Date(start);
-      // حساب دقيق لأيام الإضافة
       const daysToAdd = planType === 'monthly' ? (30 * repeatCount) : (7 * repeatCount);
-      end.setDate(start.getDate() + daysToAdd); // شيلنا الناقص واحد عشان نضمن التغطية الكاملة للتواريخ
+      end.setDate(start.getDate() + daysToAdd);
 
       const endDateStr = end.toISOString().split('T')[0];
 
-      // 🌟 التجهيز الآمن للحفظ
       const payload = {
         patient_id: patientId,
         doctor_id: user?.id,
-        plan_type: planType, // 'monthly' | 'weekly'
+        plan_type: planType,
         plan_title: planTitle.trim() || (planType === 'monthly' ? 'خطة علاجية شهرية' : 'خطة علاجية أسبوعية'),
         steps_list: stepsList,
+        completed_tasks: [], // بيبدأ مصفوفة فاضية عشان الدوائر تطلع بيضاء
         start_date: startDate,
-        end_date: endDateStr, // 🌟 مستحيل يتبعت null أو غلط تاني
+        end_date: endDateStr,
         doctor_notes: doctorNotes.trim() || null 
       };
 
       const { error } = await supabase.from('treatment_plans').insert([payload]);
-
       if (error) throw error;
 
       setPlanTitle('');
@@ -127,7 +141,6 @@ export const TreatmentTimeline: React.FC<TreatmentTimelineProps> = ({ patientId 
     }
   };
 
-  // 🌟 دالة مساعدة لحساب وعرض تاريخ الانتهاء بأمان
   const getExpectedEndDate = () => {
     const start = new Date(startDate);
     if (isNaN(start.getTime())) return "تاريخ غير صالح";
@@ -138,15 +151,20 @@ export const TreatmentTimeline: React.FC<TreatmentTimelineProps> = ({ patientId 
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      
+    <div dir="rtl" className="space-y-6 animate-fade-in pb-10 font-sans text-gray-900 dark:text-white">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 dark:text-white">الهندسة الزمنية للخطة</h1>
+          <p className="text-gray-500 dark:text-gray-400 font-bold text-sm mt-1">بناء وتقسيم البروتوكول العلاجي مرحلياً للمراجع.</p>
+        </div>
+      </div>
+
       <div className="bg-gray-50 dark:bg-gray-800/50 p-6 rounded-2xl border border-gray-100 dark:border-gray-800">
         <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-[#00838F] dark:text-cyan-400">
           <GitCommit size={20} /> هندسة الخطة العلاجية (مرحلياً)
         </h3>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -223,26 +241,15 @@ export const TreatmentTimeline: React.FC<TreatmentTimelineProps> = ({ patientId 
             <div>
               <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">ملاحظات سريرية (تظهر للمريض)</label>
               <div className="relative">
-                <input 
-                  type="text" 
-                  value={doctorNotes} 
-                  onChange={(e) => setDoctorNotes(e.target.value)} 
-                  placeholder="مثال: يُنصح بالانتقال بين المراحل تدريجياً لضمان الاستجابة..." 
-                  className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl py-2.5 pr-10 pl-4 focus:outline-none focus:border-[#00838F] text-sm font-bold" 
-                />
+                <input type="text" value={doctorNotes} onChange={(e) => setDoctorNotes(e.target.value)} placeholder="مثال: يُنصح بالانتقال بين المراحل تدريجياً لضمان الاستجابة..." className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl py-2.5 pr-10 pl-4 focus:outline-none focus:border-[#00838F] text-sm font-bold" />
                 <AlignRight size={18} className="absolute right-3 top-3 text-gray-400" />
               </div>
             </div>
-
           </div>
         </div>
 
         <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
-          <button 
-            onClick={handleSavePlan} 
-            disabled={isSubmitting || stepsList.length === 0}
-            className="bg-[#00838F] hover:bg-[#006064] text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
-          >
+          <button onClick={handleSavePlan} disabled={isSubmitting || stepsList.length === 0} className="bg-[#00838F] hover:bg-[#006064] text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-md">
             {isSubmitting ? 'جاري الاعتماد...' : 'تأكيد الخطة وإرسال الإشعار'}
           </button>
         </div>
@@ -276,11 +283,11 @@ export const TreatmentTimeline: React.FC<TreatmentTimelineProps> = ({ patientId 
                         </span>
                       </h4>
                       <div className="flex gap-4 text-xs font-bold text-gray-400 mt-2">
-                        <span className="flex items-center gap-1"><Calendar size={14}/> بداية التطبيق: {new Date(plan.start_date).toLocaleDateString('ar-EG')}</span>
-                        <span className="flex items-center gap-1"><RefreshCw size={14}/> موعد التقييم: {new Date(plan.end_date).toLocaleDateString('ar-EG')}</span>
+                        <span> بداية التطبيق: {new Date(plan.start_date).toLocaleDateString('ar-EG')}</span>
+                        <span> موعد التقييم: {new Date(plan.end_date).toLocaleDateString('ar-EG')}</span>
                       </div>
                     </div>
-                    <button onClick={() => handleDeletePlan(plan.id)} className="text-red-400 hover:text-red-500 transition-colors bg-gray-50 dark:bg-gray-900 p-2 rounded-xl border border-gray-100 dark:border-gray-800" title="إيقاف البرنامج">
+                    <button onClick={() => handleDeletePlan(plan.id)} className="text-red-400 hover:text-red-500 transition-colors bg-gray-50 dark:bg-gray-900 p-2 rounded-xl border border-gray-100 dark:border-gray-800">
                       <Trash2 size={18} />
                     </button>
                   </div>
@@ -292,22 +299,33 @@ export const TreatmentTimeline: React.FC<TreatmentTimelineProps> = ({ patientId 
                   )}
 
                   <div className="flex items-start w-full overflow-x-auto custom-scrollbar pb-4 pt-2 px-2">
-                    {steps.map((step: string, idx: number) => (
-                      <React.Fragment key={idx}>
-                        <div className="flex flex-col items-center min-w-[80px] group relative">
-                          <div className="w-8 h-8 rounded-full bg-[#00838F] text-white flex items-center justify-center font-bold shadow-md shadow-cyan-500/30 z-10 border-4 border-white dark:border-gray-800">
-                            <CheckCircle2 size={16} />
+                    {steps.map((step: string, idx: number) => {
+                      const isStepDone = plan.completed_tasks && plan.completed_tasks.some((t: string) => t.startsWith(step + '|'));
+                      
+                      return (
+                        <React.Fragment key={idx}>
+                          <div className="flex flex-col items-center min-w-[80px] group relative">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold z-10 border-2 transition-all duration-300 ${
+                              isStepDone 
+                                ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/30' 
+                                : 'bg-white dark:bg-gray-800 text-[#00838F] dark:text-cyan-400 border-[#00838F] dark:border-cyan-400'
+                            }`}>
+                              {isStepDone ? <CheckCircle2 size={18} /> : <span>{idx + 1}</span>}
+                            </div>
+                            <span className={`text-xs font-bold text-center mt-3 max-w-[100px] leading-tight ${
+                              isStepDone ? 'text-emerald-600 dark:text-emerald-400 line-through opacity-70' : 'text-gray-700 dark:text-gray-300'
+                            }`}>
+                              {step}
+                            </span>
                           </div>
-                          <span className="text-xs font-bold text-center mt-3 text-gray-700 dark:text-gray-300 max-w-[100px] leading-tight">
-                            {step}
-                          </span>
-                        </div>
-                        
-                        {idx < steps.length - 1 && (
-                          <div className="flex-1 h-1 bg-[#00838F]/20 dark:bg-[#00838F]/40 mt-3.5 -mx-2 z-0 min-w-[40px]"></div>
-                        )}
-                      </React.Fragment>
-                    ))}
+                          {idx < steps.length - 1 && (
+                            <div className={`flex-1 h-1 mt-3.5 -mx-2 z-0 min-w-[40px] transition-colors ${
+                              isStepDone ? 'bg-emerald-500/50' : 'bg-gray-200 dark:bg-gray-700'
+                            }`}></div>
+                          )}
+                        </React.Fragment>
+                      )
+                    })}
                   </div>
                 </div>
               );
@@ -315,7 +333,6 @@ export const TreatmentTimeline: React.FC<TreatmentTimelineProps> = ({ patientId 
           </div>
         )}
       </div>
-
     </div>
   );
 };
